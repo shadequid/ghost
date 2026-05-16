@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Confirm UX v2 — mock</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      :root {
+        --bg: #05080d;
+        --card-bg: #11161e;
+        --card-bg-deep: #0a0e15;
+        --border: rgba(121, 121, 121, 0.15);
+        --border-strong: #202436;
+        --text: #c8d6e5;
+        --text-dim: #7f8f9e;
+        --text-faint: #4a5868;
+        --accent-green: #00ff88;
+        --accent-red: #ff5555;
+        --row-hl: rgba(255, 255, 255, 0.05);
+        --badge-bg: rgba(255, 255, 255, 0.05);
+        --focus-ring: #4ea4ff;
+        --accent-blue: #4ea4ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 32px 20px 96px;
+      }
+
+      .page-header {
+        color: var(--text-dim);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 24px;
+      }
+
+      .section-header {
+        color: var(--text-dim);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 40px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed var(--border);
+      }
+
+      .variant-label {
+        color: var(--text-faint);
+        font-size: 11px;
+        margin-bottom: 8px;
+        font-family: inherit;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* ── confirm card ─────────────────────────────────────── */
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px 18px 14px;
+        position: relative;
+      }
+
+      /* ── status states (executing / executed / failed / expired) ── */
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        margin-top: 6px;
+      }
+      .status-row .status-icon {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .status-sub {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-top: 4px;
+        padding-left: 22px;
+      }
+      .status-sub.error {
+        font-style: italic;
+      }
+
+      .card[data-state="executing"] .card-title,
+      .card[data-state="executing"] .desc {
+        opacity: 0.6;
+      }
+      .card[data-state="executing"] .status-row {
+        color: var(--accent-blue);
+      }
+      .card[data-state="executing"] .status-icon {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .card[data-state="executed"] .status-row {
+        color: var(--accent-green);
+      }
+
+      .card[data-state="failed"] .status-row {
+        color: var(--accent-red);
+      }
+
+      .card[data-state="expired"] {
+        opacity: 0.5;
+      }
+      .card[data-state="expired"] .status-row {
+        color: var(--text-dim);
+      }
+
+      /* per-step status badges (multi-step partial failure) */
+      .step-status {
+        font-size: 12px;
+        margin-left: 6px;
+      }
+      .step-status.step-ok {
+        color: var(--accent-green);
+      }
+      .step-status.step-err {
+        color: var(--accent-red);
+      }
+
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .card-title {
+        font-size: 14px;
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: none;
+        color: #e8eef5;
+        line-height: 1.55;
+      }
+
+      .card-title .accent-long {
+        color: var(--accent-green);
+      }
+
+      .card-title .accent-short {
+        color: var(--accent-red);
+      }
+
+      .dismiss {
+        background: transparent;
+        border: none;
+        color: var(--text-dim);
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+        font-family: inherit;
+        font-size: 14px;
+        border-radius: 4px;
+      }
+      .dismiss:hover {
+        color: var(--text);
+      }
+      .dismiss:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      /* divider under title row — hidden in default variant */
+      .title-divider {
+        display: none;
+      }
+
+      .desc {
+        list-style: none;
+        margin: 4px 0 12px;
+        padding: 0 0 0 16px;
+        color: var(--text);
+      }
+      .desc li {
+        position: relative;
+        padding: 1px 0 1px 14px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .desc li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: var(--text-dim);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .desc {
+        counter-reset: step;
+      }
+      .desc li.step {
+        counter-increment: step;
+        padding-left: 22px;
+      }
+      .desc li.step::before {
+        content: counter(step) ".";
+        font-size: 14px;
+        color: var(--text);
+      }
+      .desc li.muted {
+        color: var(--text-dim);
+      }
+
+      /* ── option rows ──────────────────────────────────────── */
+      .options {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 6px;
+      }
+
+      .opt {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 -18px;
+        padding: 8px 18px;
+        border-radius: 0;
+        cursor: pointer;
+        user-select: none;
+        border: 1px solid transparent;
+        transition: background 120ms ease-out, color 120ms ease-out;
+      }
+
+      .opt:hover {
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .opt.selected {
+        background: var(--row-hl);
+      }
+
+      /* selected state: bg highlight only — no left-edge accent */
+
+      .badge {
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--badge-bg);
+        color: var(--text-dim);
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: inherit;
+      }
+
+      .opt.selected .badge {
+        color: var(--text);
+      }
+
+      .opt-label {
+        flex: 1 1 auto;
+        font-size: 14px;
+        color: var(--text-dim);
+        font-weight: 500;
+      }
+
+      .opt.selected .opt-label {
+        color: var(--text);
+      }
+
+      .opt.selected.execute .opt-label {
+        color: var(--accent-green);
+      }
+
+      .enter-hint {
+        flex: 0 0 auto;
+        color: var(--text-dim);
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 120ms ease-out;
+      }
+
+      .opt.selected .enter-hint {
+        opacity: 1;
+      }
+
+      /* ── feedback row (option 3) ─────────────────────────── */
+      .opt-feedback {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 2px -18px 0;
+        padding: 8px 18px;
+        border-radius: 0;
+      }
+
+      .opt-feedback .icon {
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--badge-bg);
+        border-radius: 5px;
+        color: var(--text-dim);
+        font-size: 16px;
+      }
+
+      .feedback-input {
+        flex: 1 1 auto;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 14px;
+        padding: 4px 0;
+        caret-color: var(--accent-green);
+      }
+      .feedback-input::placeholder {
+        color: var(--text-dim);
+      }
+      .feedback-input:focus {
+        outline: none;
+        border: none;
+      }
+
+      .skip-btn {
+        flex: 0 0 auto;
+        background: transparent;
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-family: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        transition: color 120ms ease-out, border-color 120ms ease-out;
+      }
+      .skip-btn:hover {
+        color: var(--text);
+        border-color: rgba(121, 121, 121, 0.3);
+      }
+      .skip-btn:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      /* feedback row in "active" state — when input has focus */
+      .opt-feedback.active {
+        background: var(--row-hl);
+      }
+
+      /* divider between desc and options — hidden in default variant */
+      .desc + .options {
+        margin-top: 6px;
+      }
+
+      /* ── accessibility ───────────────────────────────────── */
+      .opt:focus-visible,
+      .skip-btn:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      /* ════════════════════════════════════════════════════════
+         VARIANT B — Borderless flat
+         no card border, no rounded corners, full-width rules,
+         selected option = green-tinted bg, no left-border accent
+         ════════════════════════════════════════════════════════ */
+      .card.variant-b {
+        background: transparent;
+        border: none;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        padding: 16px 0 14px;
+      }
+      .card.variant-b .card-head {
+        padding: 0 4px;
+      }
+      .card.variant-b .title-divider {
+        margin-left: 0;
+        margin-right: 0;
+      }
+      .card.variant-b .desc {
+        padding: 0 4px;
+      }
+      .card.variant-b .options {
+        padding: 0 4px;
+      }
+      .card.variant-b .opt {
+        border-radius: 0;
+      }
+      .card.variant-b .opt.selected {
+        background: rgba(0, 255, 136, 0.08);
+        box-shadow: none;
+      }
+      .card.variant-b .opt.selected.execute {
+        box-shadow: none;
+      }
+      .card.variant-b .opt.selected.cancel {
+        background: rgba(255, 85, 85, 0.08);
+        box-shadow: none;
+      }
+      .card.variant-b .opt-feedback {
+        border-radius: 0;
+      }
+
+      /* ════════════════════════════════════════════════════════
+         VARIANT C — Filled accent
+         thicker 2px border, selected option = chip-style
+         (green bg + green text), badge tinted green
+         ════════════════════════════════════════════════════════ */
+      .card.variant-c {
+        border-width: 2px;
+        border-color: rgba(121, 121, 121, 0.25);
+      }
+      .card.variant-c .opt.selected {
+        background: rgba(0, 255, 136, 0.12);
+        box-shadow: none;
+      }
+      .card.variant-c .opt.selected.execute {
+        box-shadow: none;
+      }
+      .card.variant-c .opt.selected.execute .opt-label {
+        color: var(--accent-green);
+      }
+      .card.variant-c .opt.selected.execute .badge {
+        background: rgba(0, 255, 136, 0.18);
+        color: var(--accent-green);
+      }
+      .card.variant-c .opt.selected.cancel {
+        background: rgba(255, 85, 85, 0.12);
+        box-shadow: none;
+      }
+      .card.variant-c .opt.selected.cancel .opt-label {
+        color: var(--accent-red);
+      }
+      .card.variant-c .opt.selected.cancel .badge {
+        background: rgba(255, 85, 85, 0.18);
+        color: var(--accent-red);
+      }
+
+      /* ════════════════════════════════════════════════════════
+         VARIANT D — Terminal-block
+         heavy contrast, square corners, persistent green left
+         border on card, selected = inverted (green bg, black text)
+         ════════════════════════════════════════════════════════ */
+      .card.variant-d {
+        background: var(--card-bg-deep);
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--accent-green);
+        border-radius: 0;
+      }
+      .card.variant-d .opt {
+        border-radius: 0;
+      }
+      .card.variant-d .opt.selected {
+        background: var(--row-hl);
+        box-shadow: none;
+      }
+      .card.variant-d .opt.selected.execute {
+        background: var(--accent-green);
+        box-shadow: none;
+      }
+      .card.variant-d .opt.selected.execute .opt-label {
+        color: #0a0e15;
+        font-weight: 700;
+      }
+      .card.variant-d .opt.selected.execute .badge {
+        background: #0a0e15;
+        color: var(--accent-green);
+      }
+      .card.variant-d .opt.selected.execute .enter-hint {
+        color: #0a0e15;
+      }
+      .card.variant-d .opt.selected.cancel {
+        background: var(--accent-red);
+        box-shadow: none;
+      }
+      .card.variant-d .opt.selected.cancel .opt-label {
+        color: #0a0e15;
+        font-weight: 700;
+      }
+      .card.variant-d .opt.selected.cancel .badge {
+        background: #0a0e15;
+        color: var(--accent-red);
+      }
+      .card.variant-d .opt.selected.cancel .enter-hint {
+        color: #0a0e15;
+      }
+      .card.variant-d .opt-feedback {
+        border-radius: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="page-header">Confirm UX v2 — mock</div>
+      <div class="stack" id="stack">
+        <!-- ── card 0 — short demo (direction = red) ──────────── -->
+        <section class="card" data-card="0" data-direction="short">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-short">Short ETH</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$3,120.00 (market)</li>
+            <li>Size: 0.32</li>
+            <li>Stop Loss: $3,210.00</li>
+            <li>Take Profit: $2,940.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── card 1 — single action ─────────────────────────── -->
+        <section class="card" data-card="1" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── card 2 — multi-step plan ───────────────────────── -->
+        <section class="card" data-card="2">
+          <div class="card-head">
+            <div class="card-title">Do you want to update <span class="accent-long">BTC take profit</span>?</div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li class="step">Cancel TP order #12345 (BTC @ $100,000)</li>
+            <li class="step">Place new TP at $105,000</li>
+            <li class="muted">Net: TP raised by $5,000 on existing long</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── card 3 — bracket order (matches user screenshot) ─ -->
+        <section class="card" data-card="3" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             STYLE VARIANTS — same content (Card 3, Open Long BTC),
+             different visual treatments
+             ════════════════════════════════════════════════════════ -->
+        <div class="section-header">Style Variants</div>
+
+        <!-- Variant A — Bordered minimal (current baseline) -->
+        <div class="variant-label">// Variant A — Bordered minimal (current)</div>
+        <section class="card variant-a" data-card="A" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Variant B — Borderless flat -->
+        <div class="variant-label">// Variant B — Borderless flat</div>
+        <section class="card variant-b" data-card="B" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Variant C — Filled accent -->
+        <div class="variant-label">// Variant C — Filled accent</div>
+        <section class="card variant-c" data-card="C" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Variant D — Terminal-block -->
+        <div class="variant-label">// Variant D — Terminal-block</div>
+        <section class="card variant-d" data-card="D" data-direction="long">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+            <button class="dismiss" aria-label="Dismiss">✕</button>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="options" data-options>
+            <div class="opt selected execute" data-opt="1" tabindex="0">
+              <span class="badge">1</span>
+              <span class="opt-label">Confirm</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt cancel" data-opt="2" tabindex="0">
+              <span class="badge">2</span>
+              <span class="opt-label">Cancel</span>
+              <span class="enter-hint">↵</span>
+            </div>
+            <div class="opt-feedback" data-feedback>
+              <span class="icon">✎</span>
+              <input
+                class="feedback-input"
+                type="text"
+                placeholder="Type here to discuss more"
+                aria-label="Feedback to Ghost"
+              />
+              <button class="skip-btn" data-skip>Skip</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             STATUS STATES — same content (Open Long BTC bracket),
+             different lifecycle states
+             ════════════════════════════════════════════════════════ -->
+        <div class="section-header">// Status States — same content (Open Long BTC bracket)</div>
+
+        <!-- a) Executing -->
+        <div class="variant-label">// Executing — single step in flight</div>
+        <section class="card" data-card="S1" data-direction="long" data-state="executing">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="status-row">
+            <span class="status-icon" aria-hidden="true">↻</span>
+            <span>Executing 1 of 2…</span>
+          </div>
+        </section>
+
+        <!-- b) Executed (success) -->
+        <div class="variant-label">// Executed — success</div>
+        <section class="card" data-card="S2" data-direction="long" data-state="executed">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="status-row">
+            <span class="status-icon" aria-hidden="true">✓</span>
+            <span>Executed</span>
+          </div>
+          <div class="status-sub">Order filled @ $80,940 — size 0.0124</div>
+        </section>
+
+        <!-- c) Failed — single -->
+        <div class="variant-label">// Failed — single step</div>
+        <section class="card" data-card="S3" data-direction="long" data-state="failed">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="status-row">
+            <span class="status-icon" aria-hidden="true">✕</span>
+            <span>Failed</span>
+          </div>
+          <div class="status-sub error">Insufficient margin — needed $1,003.66, available $812.00</div>
+        </section>
+
+        <!-- c2) Failed — multi-step partial failure -->
+        <div class="variant-label">// Failed — multi-step partial failure</div>
+        <section class="card" data-card="S4" data-state="failed">
+          <div class="card-head">
+            <div class="card-title">Do you want to update <span class="accent-long">BTC take profit</span>?</div>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li class="step">Cancel TP order #12345 (BTC @ $100,000) <span class="step-status step-ok">✓ done</span></li>
+            <li class="step">Place new TP at $105,000 <span class="step-status step-err">✕ failed: order rejected</span></li>
+            <li class="muted">Net: TP raised by $5,000 on existing long</li>
+          </ul>
+          <div class="status-row">
+            <span class="status-icon" aria-hidden="true">✕</span>
+            <span>Failed</span>
+          </div>
+          <div class="status-sub error">Step 2 of 2 rejected — original TP already cancelled</div>
+        </section>
+
+        <!-- d) Expired -->
+        <div class="variant-label">// Expired — confirmation window elapsed</div>
+        <section class="card" data-card="S5" data-direction="long" data-state="expired">
+          <div class="card-head">
+            <div class="card-title">
+              Do you want to open a <span class="accent-long">Long BTC</span> position?
+            </div>
+          </div>
+          <hr class="title-divider" />
+          <ul class="desc">
+            <li>Entry: ~$80,940.00 (market)</li>
+            <li>Size: 0.0124</li>
+            <li>Stop Loss: $79,417.00</li>
+            <li>Take Profit: $83,500.00</li>
+          </ul>
+          <div class="status-row">
+            <span class="status-icon" aria-hidden="true">⏱</span>
+            <span>Expired</span>
+          </div>
+          <div class="status-sub">Confirmation window elapsed — no action taken.</div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      // Each card maintains its own selection state. Only the "active" card
+      // (most recent click/focus) responds to global keys; cards otherwise
+      // independent so the user can compare them.
+      const cards = Array.from(document.querySelectorAll('.card'));
+
+      cards.forEach((card) => {
+        // Status-state cards (executing/executed/failed/expired) have no
+        // options or feedback — skip wiring them up so they render statically.
+        if (card.dataset.state) return;
+
+        const opts = Array.from(card.querySelectorAll('.opt'));
+        const feedback = card.querySelector('[data-feedback]');
+        const input = feedback.querySelector('.feedback-input');
+        const skip = feedback.querySelector('[data-skip]');
+        const dismiss = card.querySelector('.dismiss');
+
+        let selected = 0; // 0 or 1 — index into opts
+
+        function paint() {
+          opts.forEach((o, i) => {
+            o.classList.toggle('selected', i === selected);
+          });
+          feedback.classList.remove('active');
+        }
+
+        function focusInput() {
+          opts.forEach((o) => o.classList.remove('selected'));
+          feedback.classList.add('active');
+          input.focus();
+        }
+
+        function blurInput() {
+          feedback.classList.remove('active');
+          input.blur();
+        }
+
+        opts.forEach((o, i) => {
+          o.addEventListener('click', () => {
+            selected = i;
+            paint();
+            o.focus();
+            // simulate confirm on second click? no — single click selects;
+            // Enter to confirm. (matches Claude-Code-style numbered prompt)
+          });
+          o.addEventListener('dblclick', () => {
+            selected = i;
+            paint();
+            confirmSelected();
+          });
+        });
+
+        skip.addEventListener('click', (e) => {
+          e.preventDefault();
+          input.value = '';
+          blurInput();
+          selected = 0;
+          paint();
+          opts[0].focus();
+        });
+
+        dismiss.addEventListener('click', () => {
+          console.log(`[card ${card.dataset.card}] dismissed`);
+          card.style.opacity = '0.4';
+        });
+
+        input.addEventListener('focus', () => {
+          opts.forEach((o) => o.classList.remove('selected'));
+          feedback.classList.add('active');
+        });
+
+        input.addEventListener('blur', () => {
+          // re-paint based on selected when input blurs
+          paint();
+        });
+
+        // submitting feedback from input
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (text.length === 0) return;
+            console.log(
+              `[card ${card.dataset.card}] feedback submitted: "${text}"`
+            );
+            input.value = '';
+            blurInput();
+            card.style.opacity = '0.4';
+          }
+          // Esc inside input → blur back to options, do not cancel
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            blurInput();
+            paint();
+            opts[selected].focus();
+          }
+        });
+
+        function confirmSelected() {
+          const choice = selected === 0 ? 'execute' : 'cancel';
+          console.log(`[card ${card.dataset.card}] confirmed: ${choice}`);
+          card.style.opacity = '0.4';
+        }
+
+        // card-level keyboard handler: only fires when an .opt inside
+        // this card has focus (so we don't hijack typing elsewhere)
+        card.addEventListener('keydown', (e) => {
+          const isInputFocused = document.activeElement === input;
+          if (isInputFocused) return; // input has its own handler
+          const focusedOpt = opts.find((o) => o === document.activeElement);
+          if (!focusedOpt && e.target !== card) return;
+
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (selected === opts.length - 1) {
+              // past last option → focus feedback input
+              focusInput();
+              return;
+            }
+            selected = Math.min(opts.length - 1, selected + 1);
+            paint();
+            opts[selected].focus();
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selected = Math.max(0, selected - 1);
+            paint();
+            opts[selected].focus();
+          } else if (e.key === '1') {
+            selected = 0;
+            paint();
+            opts[0].focus();
+          } else if (e.key === '2') {
+            selected = 1;
+            paint();
+            opts[1].focus();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmSelected();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            selected = 1; // cancel
+            paint();
+            confirmSelected();
+          }
+        });
+
+        // initial paint
+        paint();
+      });
+
+      // Auto-focus the first option of the first card so keyboard "just works"
+      const firstOpt = document.querySelector('.card .opt');
+      if (firstOpt) firstOpt.focus();
+    </script>
+  </body>
+</html>

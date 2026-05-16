@@ -1,0 +1,1336 @@
+@import "tailwindcss";
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+
+/* SF Pro Display — self-hosted via vite asset pipeline (.otf files in
+   src/assets/fonts/sf-pro-display/ are bundled + fingerprinted by vite).
+   4 weights shipped: 400 Regular, 500 Medium, 600 Semibold, 700 Bold —
+   covers every weight Tailwind utilities request in this app. */
+@font-face {
+  font-family: "SF Pro Display";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Regular.otf") format("opentype");
+}
+@font-face {
+  font-family: "SF Pro Display";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Medium.otf") format("opentype");
+}
+@font-face {
+  font-family: "SF Pro Display";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Semibold.otf") format("opentype");
+}
+@font-face {
+  font-family: "SF Pro Display";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Bold.otf") format("opentype");
+}
+
+@theme {
+  --color-electric-50: #eaf3ff;
+  --color-electric-100: #d8e8ff;
+  --color-electric-300: #87b8ff;
+  --color-electric-500: #2f8fff;
+  --color-electric-700: #0f57dd;
+  --color-electric-900: #031126;
+
+   /* Streamdown / shadcn-ui — Tailwind v4 color tokens (Ghost dark palette).
+      `--color-background` rebound to the Figma `--color-surface-canvas`
+      (#0a0a0b, neutral dark) so `bg-background` consumers — chat section,
+      chat input, tool-call panel, link-preview modal, Tools/Skills pages
+      — all match the Figma layout (node 215:1115). */
+  --color-background: #0a0a0b;
+  --color-foreground: #c8d6e5;
+  --color-card: #0a0e15;
+  --color-card-foreground: #c8d6e5;
+  --color-popover: #0a0e15;
+  --color-popover-foreground: #c8d6e5;
+  --color-primary: #00d4ff;
+  --color-primary-foreground: #0a1628;
+  --color-secondary: #0f1621;
+  --color-secondary-foreground: #c8d6e5;
+  --color-muted: #0f1621;
+  --color-muted-foreground: #7f8f9e;
+  --color-accent: #0f1621;
+  --color-accent-foreground: #c8d6e5;
+  --color-destructive: #ff4757;
+  --color-destructive-foreground: #fff;
+  --color-border: #202436;
+  --color-input: #202436;
+  --color-ring: #00d4ff;
+  --color-sidebar: #0a0e15;
+  --color-sidebar-foreground: #c8d6e5;
+  --color-sidebar-border: #202436;
+  --radius: 0.1875rem;
+
+  /* ── AgentGhost Figma typography ramp · 22 tokens ──
+     Source: figma.com/design/BnlENgUVNhoslTcxSh8RUp (node 17:2).
+     Each token bundles size + line-height + font-weight (+ tracking).
+     Tailwind v4 generates `text-<name>` utilities from these subkeys.
+     Weights: variable axis 510/590 rounded → 500/600 (static .otf).
+     See web/DESIGN.md §1 for the full mapping + usage. */
+
+  /* Display — hero numbers, marquee titles */
+  --text-display-lg:                48px;
+  --text-display-lg--line-height:   1.5;
+  --text-display-lg--font-weight:   700;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md:                36px;
+  --text-display-md--line-height:   1.5;
+  --text-display-md--font-weight:   600;
+  --text-display-md--letter-spacing: -0.015em;
+
+  /* Heading — section titles */
+  --text-heading-lg:                28px;
+  --text-heading-lg--line-height:   1.5;
+  --text-heading-lg--font-weight:   700;
+  --text-heading-lg--letter-spacing: -0.01em;
+  --text-heading-md:                22px;
+  --text-heading-md--line-height:   1.5;
+  --text-heading-md--font-weight:   600;
+  --text-heading-md--letter-spacing: -0.005em;
+  --text-heading-sm:                18px;
+  --text-heading-sm--line-height:   1.5;
+  --text-heading-sm--font-weight:   500;
+
+  /* Number — numeric values */
+  --text-number-lg:                 32px;
+  --text-number-lg--line-height:    1.5;
+  --text-number-lg--font-weight:    600;
+  --text-number-md:                 14px;
+  --text-number-md--line-height:    1.5;
+  --text-number-md--font-weight:    500;
+  --text-number-sm:                 12px;
+  --text-number-sm--line-height:    1.5;
+  --text-number-sm--font-weight:    400;
+
+  /* Body — prose, row content (default: text-body-md = 14/Regular/150%) */
+  --text-body-lg:                       16px;
+  --text-body-lg--line-height:          1.5;
+  --text-body-lg--font-weight:          400;
+  --text-body-lg-semibold:              16px;
+  --text-body-lg-semibold--line-height: 1.5;
+  --text-body-lg-semibold--font-weight: 600;
+  --text-body-md:                       14px;
+  --text-body-md--line-height:          1.5;
+  --text-body-md--font-weight:          400;
+  --text-body-md-medium:                14px;
+  --text-body-md-medium--line-height:   1.5;
+  --text-body-md-medium--font-weight:   500;
+  --text-body-md-semibold:              14px;
+  --text-body-md-semibold--line-height: 1.5;
+  --text-body-md-semibold--font-weight: 600;
+  --text-body-sm:                       13px;
+  --text-body-sm--line-height:          1.5;
+  --text-body-sm--font-weight:          400;
+  --text-body-sm-medium:                13px;
+  --text-body-sm-medium--line-height:   1.5;
+  --text-body-sm-medium--font-weight:   500;
+
+  /* Label — UI labels, buttons, caps */
+  --text-label-lg:                  16px;
+  --text-label-lg--line-height:     1.5;
+  --text-label-lg--font-weight:     500;
+  --text-label-md:                  14px;
+  --text-label-md--line-height:     1.5;
+  --text-label-md--font-weight:     500;
+  --text-label-sm:                  12px;
+  --text-label-sm--line-height:     1.5;
+  --text-label-sm--font-weight:     500;
+  --text-label-sm--letter-spacing:  0.02em;
+  --text-label-caps:                12px;
+  --text-label-caps--line-height:   1.5;
+  --text-label-caps--font-weight:   700;
+  --text-label-caps--letter-spacing: 0.08em;
+
+  /* Link — adds `underline` utility separately */
+  --text-link-md:                   14px;
+  --text-link-md--line-height:      1.5;
+  --text-link-md--font-weight:      400;
+
+  /* Caption / Footnote — micro text */
+  --text-caption:                   11px;
+  --text-caption--line-height:      1.5;
+  --text-caption--font-weight:      400;
+  --text-footnote:                  10px;
+  --text-footnote--line-height:     1.5;
+  --text-footnote--font-weight:     400;
+
+  /* ── Legacy typography scale — DEPRECATED ──
+     Kept to compile the existing 175+ call sites. New code uses the Figma
+     ramp above. Migrate per-screen — default body shifts 11px → 14px.
+     `text-display` and `text-display-lg` were removed (names collide with
+     new ramp); only `SkillUploadModal` + `Sidebar` empty states used them,
+     migrated to `text-[24px]`. */
+  --text-micro: 9px;   /* kbd hints, micro badges, axis labels */
+  --text-xs:   10px;   /* meta text, timestamps, column headers */
+  --text-sm:   11px;   /* legacy default — was most body/UI text */
+  --text-base: 13px;   /* widget body, dialog rows (chat uses --text-body-md = 14px) */
+  --text-lg:   15px;   /* section headers, emphasis, CTA labels */
+
+  /* Motion design tokens — durations + easing curves for consistent animation feel.
+     The --duration-* / --ease-* variables live in Tailwind's theme namespace so
+     they become utilities (duration-fast, ease-out, etc). --motion-* aliases
+     stay for legacy CSS rules (.btn-press, .widget-header, etc). */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 320ms;
+  --duration-enter: 480ms;
+  --motion-fast: var(--duration-fast);
+  --motion-base: var(--duration-base);
+  --motion-slow: var(--duration-slow);
+  --motion-enter: var(--duration-enter);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* App-wide monospace font — pure system stack. SF Mono on Mac,
+     Consolas on Windows, Menlo as common fallback, generic monospace
+     last. Not self-hosted (no external font CDN, no bundled .woff2).
+     NOTE: tokens kept here intentionally drive Tailwind utilities
+     (`font-mono` / `font-sans`). Other font tokens go to `:root` to
+     avoid silent utility shadowing (per
+     ~/.claude/skills/tailwind-v4-theme-shadows-defaults). */
+  --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+  /* Sans stack — SF Pro Display self-hosted via @font-face above (.otf
+     bundled by vite). Named "SF Pro" / native -apple-system kept as
+     fallback for OS-installed SF Pro; system-ui / Helvetica / Arial
+     cover the edge case where the .otf failed to load. */
+  --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
+
+  /* ── Figma "AgentGhost" dark palette · 35 tokens · brand #3BF7BF ──
+     Source: figma.com/design/maLdi9FQS11WDshl3IRfQu (node 12:2).
+     Defined here for component-level adoption; NOT yet wired to the
+     shadcn aliases above. New components should use these directly
+     (e.g. bg-surface-raised, text-text-primary, border-border-subtle). */
+  --color-surface-canvas: #0A0A0B;
+  --color-surface-base: #111114;
+  --color-surface-raised: #17181b;
+  --color-surface-overlay: #1f2024;
+  --color-surface-scrim: rgba(0, 0, 0, 0.7);
+
+  --color-border-subtle: #1f2024;
+  --color-border-default: #2a2c31;
+  --color-border-strong: #3a3c42;
+  --color-border-focus: #3bf7bf;
+
+  --color-text-primary: #f5f6f8;
+  --color-text-secondary: #b0b4bd;
+  --color-text-tertiary: #6e7480;
+  --color-text-muted: #4a4f58;
+  --color-text-on-brand: #0a0a0b;
+
+  --color-brand-subtle: rgba(59, 247, 191, 0.08);
+  --color-brand-soft: rgba(59, 247, 191, 0.16);
+  --color-brand-default: #3bf7bf;
+  --color-brand-hover: #5dfac9;
+  --color-brand-pressed: #28d9a4;
+
+  --color-success-subtle: rgba(34, 197, 94, 0.1);
+  --color-success-soft: rgba(34, 197, 94, 0.2);
+  --color-success-default: #22c55e;
+  --color-success-text: #4ade80;
+
+  --color-error-subtle: rgba(239, 68, 68, 0.1);
+  --color-error-soft: rgba(239, 68, 68, 0.2);
+  --color-error-default: #ef4444;
+  --color-error-text: #f87171;
+
+  --color-warning-subtle: rgba(245, 158, 11, 0.1);
+  --color-warning-soft: rgba(245, 158, 11, 0.2);
+  --color-warning-default: #f59e0b;
+  --color-warning-text: #fb923c;
+
+  --color-info-subtle: rgba(59, 130, 246, 0.1);
+  --color-info-soft: rgba(59, 130, 246, 0.2);
+  --color-info-default: #3b82f6;
+  --color-info-text: #60a5fa;
+}
+
+/* Figma design tokens that MUST NOT be in `@theme` — Tailwind v4 would
+   emit utilities for them (`rounded-md`, `font-display`, `shadow-glow-md`)
+   and silently shadow defaults or pre-existing classnames. Kept as plain
+   custom properties; consumed via `var(...)` in CSS or inline styles. */
+:root {
+  /* Radius — Figma AgentGhost foundation (see web/DESIGN.md §6). The
+     canonical scale is 1 / 2 / 4 / full — `--radius-fig-sm` (4px) is the
+     button/input/sub-panel value consumed by MessageBubble + ConfirmationCard
+     via `var(--radius-fig-sm)`. `--radius-fig-full` aliases pill/dot.
+     The legacy `--radius-fig-md` (12px) and `--radius-fig-lg` (20px) were
+     dropped — they were unused and outside the foundation. Tailwind's
+     default `rounded-md` (6px) / `rounded-lg` (8px) stay intact for the
+     existing call sites — migrate per-touch per DESIGN.md §6.
+     `--radius` (3px) under shadcn `:root` below is the legacy alias and
+     is unrelated to this scale. */
+  --radius-fig-sm: 4px;
+  --radius-fig-full: 9999px;
+
+  /* Elevation / glow — mint-tinted brand glow. Structure preserved from
+     the legacy electric stack; hue swapped to `#3bf7bf` to follow the
+     Figma brand. Use as `box-shadow: var(--shadow-glow-md)`. */
+  --shadow-glow-sm:
+    0 0 0 1px rgba(59, 247, 191, 0.14),
+    0 12px 24px -20px rgba(59, 247, 191, 0.7);
+  --shadow-glow-md:
+    inset 0 1px 0 rgba(140, 255, 220, 0.14),
+    0 0 0 1px rgba(93, 250, 201, 0.18),
+    0 22px 40px -32px rgba(59, 247, 191, 0.86),
+    0 0 22px -16px rgba(93, 250, 201, 0.75);
+  --shadow-glow-lg:
+    inset 0 1px 0 rgba(146, 255, 222, 0.16),
+    0 30px 60px -44px rgba(59, 247, 191, 0.98),
+    0 0 0 1px rgba(93, 250, 201, 0.2),
+    0 0 28px -18px rgba(120, 255, 220, 0.82);
+}
+
+/* shadcn CSS variable fallbacks (Streamdown may reference these via hsl(var(--x))) */
+@layer base {
+  :root {
+    --background: 220 30% 3%;
+    --foreground: 210 20% 80%;
+    --card: 220 30% 4%;
+    --card-foreground: 210 20% 80%;
+    --popover: 220 30% 4%;
+    --popover-foreground: 210 20% 80%;
+    --primary: 197 100% 50%;
+    --primary-foreground: 220 30% 7%;
+    --secondary: 217 32% 10%;
+    --secondary-foreground: 210 20% 80%;
+    --muted: 217 32% 10%;
+    --muted-foreground: 210 15% 60%;
+    --accent: 217 32% 10%;
+    --accent-foreground: 210 20% 80%;
+    --destructive: 4 80% 63%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 230 25% 17%;
+    --input: 230 25% 17%;
+    --ring: 197 100% 50%;
+    --radius: 0.1875rem;
+  }
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--color-text-primary, #f5f6f8);
+  background: var(--color-surface-canvas, #0a0a0b);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 8% 5%, rgba(59, 247, 191, 0.18), transparent 35%),
+    radial-gradient(circle at 92% 14%, rgba(93, 250, 201, 0.12), transparent 32%),
+    linear-gradient(175deg, #050708 0%, #0a0a0b 46%, #0f1014 100%);
+}
+
+.app-shell::before,
+.app-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.app-shell::before {
+  background-image:
+    linear-gradient(rgba(110, 116, 128, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110, 116, 128, 0.08) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at 50% 36%, black 22%, transparent 80%);
+  opacity: 0.35;
+}
+
+.app-shell::after {
+  background:
+    radial-gradient(circle at 16% 86%, rgba(59, 247, 191, 0.28), transparent 43%),
+    radial-gradient(circle at 84% 22%, rgba(93, 250, 201, 0.18), transparent 38%),
+    radial-gradient(circle at 52% 122%, rgba(40, 217, 164, 0.24), transparent 56%);
+  filter: blur(4px);
+  animation: appGlowDrift 28s ease-in-out infinite;
+}
+
+.glass-header {
+  position: relative;
+  backdrop-filter: blur(16px);
+  background: linear-gradient(160deg, rgba(17, 17, 20, 0.85), rgba(10, 10, 11, 0.9));
+  box-shadow:
+    0 18px 32px -28px rgba(59, 247, 191, 0.7),
+    inset 0 1px 0 rgba(140, 255, 220, 0.14);
+}
+
+.glass-header::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 10%, rgba(93, 250, 201, 0.24), transparent 70%);
+  transform: translateX(-70%);
+  animation: topGlowSweep 7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(59, 247, 191, 0.35);
+  padding: 1.15rem 1.2rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59, 247, 191, 0.22), transparent 40%),
+    linear-gradient(146deg, rgba(23, 24, 27, 0.95), rgba(10, 10, 11, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(140, 255, 220, 0.16),
+    0 22px 50px -38px rgba(59, 247, 191, 0.8);
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(118deg, transparent, rgba(120, 255, 220, 0.12), transparent 70%);
+  transform: translateX(-62%);
+  animation: heroSweep 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  width: 19rem;
+  height: 19rem;
+  right: -6rem;
+  top: -10rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(59, 247, 191, 0.36), transparent 70%);
+  filter: blur(12px);
+  animation: heroGlowPulse 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 247, 191, 0.4);
+  background: rgba(31, 32, 36, 0.68);
+  color: var(--color-text-secondary, #b0b4bd);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  box-shadow: 0 0 22px -16px rgba(93, 250, 201, 0.85);
+}
+
+.electric-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(120, 255, 220, 0.22), rgba(59, 247, 191, 0.14) 52%, rgba(40, 217, 164, 0.18) 100%),
+    url("/logo/background.png") center / cover no-repeat;
+  background-blend-mode: screen;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 10px 25px -12px rgba(59, 247, 191, 0.85);
+}
+
+.electric-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(59, 247, 191, 0.25);
+  background:
+    linear-gradient(165deg, rgba(23, 24, 27, 0.95), rgba(10, 10, 11, 0.96));
+  box-shadow: var(--shadow-glow-md);
+}
+
+.electric-card::after {
+  content: "";
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: -65%;
+  height: 72%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 247, 191, 0.22), transparent 72%);
+  filter: blur(16px);
+  opacity: 0.45;
+  pointer-events: none;
+  animation: cardGlowPulse 5.2s ease-in-out infinite;
+}
+
+.electric-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brand-default, #3bf7bf);
+  background:
+    radial-gradient(circle at 35% 22%, rgba(120, 255, 220, 0.34), rgba(59, 247, 191, 0.28) 66%, rgba(40, 217, 164, 0.42) 100%);
+  border: 1px solid rgba(59, 247, 191, 0.4);
+}
+
+.metric-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 247, 191, 0.3);
+  background: rgba(31, 32, 36, 0.74);
+  color: var(--color-brand-default, #3bf7bf);
+  font-size: 0.66rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.55rem;
+}
+
+.metric-value {
+  color: var(--color-text-primary, #ffffff);
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-weight: 620;
+  letter-spacing: 0.02em;
+}
+
+.metric-sub {
+  color: var(--color-text-secondary, #b0b4bd);
+  font-size: 0.78rem;
+}
+
+.metric-pill {
+  border-radius: 0.85rem;
+  border: 1px solid rgba(59, 247, 191, 0.2);
+  background: rgba(17, 17, 20, 0.86);
+  padding: 0.6rem 0.72rem;
+  box-shadow: var(--shadow-glow-sm);
+}
+
+.metric-pill span {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  /* Use --color-text-secondary (#b0b4bd, ~9:1 on the pill bg) — the
+     tertiary token (#6e7480) fails WCAG AA at this size (~10.9px). */
+  color: var(--color-text-secondary, #b0b4bd);
+}
+
+.metric-pill strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.93rem;
+  color: var(--color-text-primary, #f5f6f8);
+}
+
+.electric-progress {
+  background:
+    linear-gradient(90deg, #28d9a4 0%, #3bf7bf 60%, #5dfac9 100%);
+  box-shadow: 0 0 18px -7px rgba(59, 247, 191, 0.85);
+}
+
+.pairing-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 20% 5%, rgba(59, 247, 191, 0.20), transparent 35%),
+    radial-gradient(circle at 75% 92%, rgba(93, 250, 201, 0.12), transparent 35%),
+    linear-gradient(155deg, #050708 0%, #0a0a0b 58%, #0f1014 100%);
+  overflow: hidden;
+}
+
+.pairing-shell::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(59, 247, 191, 0.22), transparent 60%),
+    radial-gradient(circle at 85% 80%, rgba(93, 250, 201, 0.20), transparent 60%);
+  filter: blur(12px);
+  opacity: 0.7;
+  animation: pairingSpotlightSweep 18s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.pairing-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(59, 247, 191, 0.4);
+  background:
+    linear-gradient(155deg, rgba(23, 24, 27, 0.94), rgba(10, 10, 11, 0.96));
+  box-shadow: var(--shadow-glow-lg);
+}
+
+.pairing-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, transparent 10%, rgba(120, 255, 220, 0.45), transparent 80%);
+  mix-blend-mode: screen;
+  opacity: 0.0;
+  transform: translateX(-65%);
+  animation: pairingCardSweep 7.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.pairing-brand {
+  background-image: linear-gradient(120deg, #3bf7bf 0%, #5dfac9 28%, #28d9a4 56%, #3bf7bf 100%);
+  background-size: 260% 260%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow:
+    0 0 14px rgba(59, 247, 191, 0.8),
+    0 0 32px rgba(93, 250, 201, 0.9),
+    0 0 42px rgba(252, 238, 147, 0.85);
+  letter-spacing: 0.18em;
+  animation: pairingElectricCharge 5.4s ease-in-out infinite;
+}
+
+:is(div, section, article)[class*="bg-gray-900"][class*="rounded-xl"][class*="border"],
+:is(div, section, article)[class*="bg-gray-900"][class*="rounded-lg"][class*="border"],
+:is(div, section, article)[class*="bg-gray-950"][class*="rounded-lg"][class*="border"] {
+  box-shadow: var(--shadow-glow-md);
+}
+
+.electric-button {
+  border: 1px solid rgba(59, 247, 191, 0.6);
+  background: linear-gradient(126deg, #28d9a4 0%, #3bf7bf 55%, #5dfac9 100%);
+  color: var(--color-text-on-brand, #0a0a0b);
+  box-shadow: 0 18px 30px -20px rgba(59, 247, 191, 0.85);
+  transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.electric-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 20px 34px -19px rgba(93, 250, 201, 0.9);
+}
+
+.electric-loader {
+  border: 3px solid rgba(59, 247, 191, 0.22);
+  border-top-color: var(--color-brand-default, #3bf7bf);
+  box-shadow: 0 0 20px -12px rgba(93, 250, 201, 1);
+  animation: spin 1s linear infinite;
+}
+
+.motion-rise {
+  animation: riseIn 580ms ease both;
+}
+
+.motion-delay-1 {
+  animation-delay: 70ms;
+}
+
+.motion-delay-2 {
+  animation-delay: 130ms;
+}
+
+.motion-delay-3 {
+  animation-delay: 190ms;
+}
+
+.motion-delay-4 {
+  animation-delay: 250ms;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-default, #2a2c31) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default, #2a2c31);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong, #3a3c42);
+}
+
+/* Global focus-visible ring for buttons, links, and any other interactive
+   element that isn't a form input — keyboard users must be able to track
+   focus across the app. Form inputs are explicitly OFF (product decision,
+   DESIGN.md §7): no outline, no border lift, caret is the only affordance.
+   The form-input rule uses `!important` because the Tailwind-generated
+   `focus-visible:outline-none` utility ties in specificity with the global
+   rule above (both (0,2,0)) and the cascade order isn't reliably on our
+   side across all Tailwind output variants. */
+*:focus-visible {
+  outline: 2px solid var(--color-border-focus, #3bf7bf);
+  outline-offset: 2px;
+}
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+}
+
+/* Confirm-card option rows convey focus via a bg/text colour shift
+   (mint-subtle bg + mint text for the Confirm option), so the global
+   2px mint focus ring is redundant and visually noisy on top of that. */
+[data-confirm-opt]:focus,
+[data-confirm-opt]:focus-visible,
+[data-confirm-opt]:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heroSweep {
+  0%,
+  100% {
+    transform: translateX(-68%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.65;
+  }
+  60% {
+    transform: translateX(58%);
+    opacity: 0;
+  }
+}
+
+@keyframes heroGlowPulse {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes cardGlowPulse {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0) scale(0.96);
+  }
+  50% {
+    opacity: 0.55;
+    transform: translateY(-2%) scale(1.04);
+  }
+}
+
+@keyframes pairingElectricCharge {
+  /* Dual-tone effect: cool mint primary + warm yellow accent. The
+     legacy animation paired electric blue with yellow; the migration
+     keeps the warm/cool contrast and only swaps the cool side to
+     mint. Pure mint flattens the effect — design wants dual-tone. */
+  0%,
+  100% {
+    background-position: 0% 50%;
+    text-shadow:
+      0 0 14px rgba(59, 247, 191, 0.5),
+      0 0 32px rgba(93, 250, 201, 0.7),
+      0 0 38px rgba(252, 238, 147, 0.6);
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    background-position: 80% 50%;
+    text-shadow:
+      0 0 26px rgba(120, 255, 220, 1),
+      0 0 52px rgba(59, 247, 191, 1),
+      0 0 60px rgba(252, 238, 147, 1);
+    transform: translateY(-1px) scale(1.06);
+  }
+  60% {
+    background-position: 50% 50%;
+    text-shadow:
+      0 0 18px rgba(59, 247, 191, 0.7),
+      0 0 36px rgba(93, 250, 201, 0.8),
+      0 0 44px rgba(252, 238, 147, 0.7);
+    transform: translateY(0) scale(1.02);
+  }
+}
+
+@keyframes pairingSpotlightSweep {
+  0% {
+    transform: translate3d(-12%, 8%, 0) scale(1);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translate3d(10%, -4%, 0) scale(1.06);
+    opacity: 0.7;
+  }
+  55% {
+    transform: translate3d(16%, 10%, 0) scale(1.1);
+    opacity: 0.6;
+  }
+  80% {
+    transform: translate3d(-8%, -6%, 0) scale(1.04);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate3d(-12%, 8%, 0) scale(1);
+    opacity: 0.45;
+  }
+}
+
+@keyframes pairingCardSweep {
+  0%,
+  100% {
+    transform: translateX(-70%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateX(55%);
+    opacity: 0;
+  }
+}
+
+@keyframes topGlowSweep {
+  0%,
+  100% {
+    transform: translateX(-78%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.55;
+  }
+  58% {
+    transform: translateX(58%);
+    opacity: 0;
+  }
+}
+
+@keyframes appGlowDrift {
+  0% {
+    opacity: 0.3;
+    transform: translate3d(-3%, 1.8%, 0) scale(1);
+  }
+  25% {
+    opacity: 0.5;
+    transform: translate3d(2.6%, -1.2%, 0) scale(1.04);
+  }
+  50% {
+    opacity: 0.56;
+    transform: translate3d(4.4%, -3.4%, 0) scale(1.09);
+  }
+  75% {
+    opacity: 0.44;
+    transform: translate3d(-1.8%, -2.1%, 0) scale(1.05);
+  }
+  100% {
+    opacity: 0.34;
+    transform: translate3d(-3.6%, 2.6%, 0) scale(1.01);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-panel {
+    padding: 0.95rem 0.95rem;
+  }
+
+  .status-pill {
+    padding: 0.28rem 0.52rem;
+    font-size: 0.61rem;
+    letter-spacing: 0.1em;
+  }
+
+  .metric-value {
+    font-size: 1.08rem;
+  }
+
+  .metric-sub {
+    font-size: 0.74rem;
+  }
+
+  .electric-card {
+    border-radius: 0.9rem;
+  }
+}
+
+/* ── Trading semantic tags ── */
+
+/* Tier 1 — Hero: LONG/SHORT + percentage (strongest emphasis) */
+.trade-long { @apply font-semibold px-1.5 py-px rounded text-[0.85em] leading-none text-emerald-400 bg-emerald-500/15; }
+.trade-short { @apply font-semibold px-1.5 py-px rounded text-[0.85em] leading-none text-red-400 bg-red-500/15; }
+.trade-pct-up { @apply font-medium text-[0.95em] text-emerald-400; }
+.trade-pct-down { @apply font-medium text-[0.95em] text-red-400; }
+
+/* Tier 2 — Key data: color only, no background */
+.trade-price { @apply font-medium text-slate-100 tabular-nums; font-size: inherit; }
+.trade-pnl-up { @apply font-semibold text-emerald-400; font-size: inherit; }
+.trade-pnl-down { @apply font-semibold text-red-400; font-size: inherit; }
+.trade-leverage { @apply font-semibold text-amber-400; font-size: inherit; }
+
+/* Tier 3 — Labels: subtle bg, de-emphasized */
+.trade-tag { @apply font-medium text-[0.9em] leading-none px-1 py-px rounded; }
+.trade-tag-entry { @apply text-blue-400 bg-blue-400/10; }
+.trade-tag-tp { @apply text-emerald-400 bg-emerald-400/10; }
+.trade-tag-sl { @apply text-red-400 bg-red-400/10; }
+.trade-risk { @apply font-medium text-[0.9em]; }
+.trade-risk-low { @apply text-emerald-400; }
+.trade-risk-medium { @apply text-amber-400; }
+.trade-risk-high { @apply text-red-400; }
+
+/* Verdict — inline conclusion with colored left border */
+.trade-verdict { @apply italic; font-size: inherit; color: inherit; border-left: 2px solid; padding-left: 8px; }
+.trade-verdict-bullish { @apply border-emerald-500/40; }
+.trade-verdict-bearish { @apply border-red-500/40; }
+.trade-verdict-neutral { @apply border-slate-500/40; }
+
+/* ── Chat Markdown ── */
+.chat-md {
+  font-size: var(--text-body-md);
+  line-height: 1.5;
+  font-family: var(--font-sans);
+  /* Streamdown CSS variable overrides — aligned to Figma AgentGhost
+     surface/text tokens so embedded markdown matches the chat surface. */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-background: #0a0a0b;
+  --color-foreground: #f5f6f8;
+  --color-muted-foreground: #6e7480;
+}
+.chat-md > *:first-child { margin-top: 0; }
+.chat-md > *:last-child { margin-bottom: 0; }
+.chat-md h1, .chat-md h2 {
+  margin-top: 0.6em;
+  margin-bottom: 0.3em;
+  font-size: inherit;
+  font-weight: 600;
+  color: #fff;
+}
+.chat-md h3, .chat-md h4 {
+  margin-top: 0.6em;
+  margin-bottom: 0.3em;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+.chat-md h2:not(:first-child),
+.chat-md h3:not(:first-child) {
+  border-top: 1px solid rgba(32,36,54,0.8);
+  padding-top: 0.6em;
+  margin-top: 0.9em;
+}
+.chat-md p { margin: 0.4em 0; }
+.chat-md ul, .chat-md ol { margin: 0.4em 0; padding-left: 1.4em; }
+.chat-md li { margin: 0.15em 0; }
+.chat-md strong { color: #fff; }
+.chat-md blockquote {
+  border-left: 2px solid rgba(121,121,121,0.15);
+  padding-left: 10px;
+  margin: 0.5em 0;
+  color: var(--color-text-tertiary);
+}
+.chat-md a {
+  color: var(--color-brand-default);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-md hr {
+  border-color: var(--color-border-subtle);
+  margin: 0.6em 0;
+}
+.chat-md img {
+  max-width: 100%;
+  border-radius: 3px;
+}
+
+/* ── Sidebar widget header: CSS-driven hover-reveal for hide button ── */
+/* Replaces imperative onMouseEnter/Leave handlers that toggled
+   data-hide button opacity. CSS :hover/:focus-within is cheaper and
+   covers keyboard users automatically. */
+.widget-header [data-hide] {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.widget-header:hover [data-hide],
+.widget-header:focus-within [data-hide] {
+  opacity: 1;
+}
+
+/* ── Sidebar icon buttons: CSS-driven hover color transitions ── */
+/* Neutral state = muted grey; hover/focus lifts to white. Replaces
+   onMouseEnter/Leave color toggles on Sidebar settings + header-action
+   buttons (news/tweets settings, done button hover, etc.). */
+.sidebar-icon-btn {
+  color: #3a4a5a;
+  transition: color var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
+}
+.sidebar-icon-btn:hover,
+.sidebar-icon-btn:focus-visible {
+  color: #fff;
+}
+
+/* ── Chat message entrance animation (snappier than .motion-rise) ── */
+.message-enter {
+  animation: message-rise var(--motion-enter) var(--ease-out) both;
+}
+@keyframes message-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── ConfirmationCard entrance + styling ── */
+.confirm-card-enter {
+  animation: confirm-rise 420ms var(--ease-out) both;
+}
+@keyframes confirm-rise {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Settings-row manage buttons — subtle nudge on hover, no background fill.
+   The row already uses a green label and a green status dot; any colored
+   or tinted hover background muddies those cues. A 1px horizontal nudge
+   reads as "into the drawer" without adding paint. Keyboard focus gets the
+   same nudge so keyboard users have parity. */
+.settings-manage-btn {
+  transition: color var(--motion-fast, 120ms) var(--ease-out, ease-out),
+              transform var(--motion-fast, 120ms) var(--ease-out, ease-out);
+}
+.settings-manage-btn:hover,
+.settings-manage-btn:focus-visible {
+  transform: translateX(1px);
+}
+
+/* Connection status dot — gentle pulse when connected, steady otherwise. */
+.status-dot-live {
+  animation: status-dot-pulse 2.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.55);
+}
+@keyframes status-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.45); }
+  50%      { box-shadow: 0 0 0 3px rgba(0, 255, 136, 0); }
+}
+
+/* Error banner — slides down from top when a new error surfaces. */
+@keyframes error-banner-slide-in {
+  from { opacity: 0; max-height: 0; transform: translateY(-4px); }
+  to   { opacity: 1; max-height: 80px; transform: translateY(0); }
+}
+
+/* Loading screen — fade-in wrapper + indeterminate ring that smoothly
+   fills and retracts. Used during initial auth + reconnect flows. */
+.app-fade-in {
+  animation: loading-fade-in var(--motion-enter, 480ms) var(--ease-out, ease-out) both;
+}
+@keyframes loading-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes loading-ring {
+  0%   { stroke-dashoffset: 138.23; transform: rotate(0deg); transform-origin: center; }
+  50%  { stroke-dashoffset: 34.5; transform: rotate(180deg); transform-origin: center; }
+  100% { stroke-dashoffset: 138.23; transform: rotate(360deg); transform-origin: center; }
+}
+
+/* Ghost symbol bob — one-shot keyframe replayed via React `key` bump on
+   each portfolio poll tick (rate-limited to ≥9s in PortfolioHeader).
+   Single iteration so re-render storms can't make it look frantic. */
+@keyframes ghost-symbol-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  35%      { transform: translateY(-2px) scale(1.06); }
+  70%      { transform: translateY(1px) scale(0.97); }
+}
+.ghost-symbol-bob {
+  animation: ghost-symbol-bob 900ms var(--ease-out, ease-out) 1;
+  transform-origin: 50% 100%;
+}
+
+/* Button press feedback — subtle scale-down on active/click. Keeps
+   interactions feeling tactile without being distracting. Opt-in via the
+   class so existing styled buttons are not globally affected. */
+.btn-press {
+  transition: transform var(--motion-fast, 120ms) var(--ease-out, ease-out),
+              background-color var(--motion-fast, 120ms) var(--ease-out, ease-out),
+              color var(--motion-fast, 120ms) var(--ease-out, ease-out),
+              border-color var(--motion-fast, 120ms) var(--ease-out, ease-out),
+              opacity var(--motion-fast, 120ms) var(--ease-out, ease-out);
+}
+.btn-press:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Portfolio refresh ring — CSS-driven dashoffset animation. React stepped
+   the dasharray at 1 Hz which looked choppy. Negative animation-delay
+   (set inline) fast-forwards past the elapsed portion so the ring resumes
+   at the correct angle after a remount. */
+.portfolio-progress-ring {
+  stroke-dashoffset: 94.25;
+  animation-name: portfolio-ring-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  animation-iteration-count: infinite;
+}
+@keyframes portfolio-ring-fill {
+  from { stroke-dashoffset: 94.25; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Countdown progress bar — runs at browser frame rate. React only drives
+   the color flip via inline style; the shrink is pure CSS. Negative
+   animation-delay from JS fast-forwards past elapsed time. */
+.confirm-progress-bar {
+  width: 100%;
+  transform-origin: left center;
+  animation-name: confirm-countdown-shrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  animation-iteration-count: 1;
+  will-change: transform;
+}
+@keyframes confirm-countdown-shrink {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Inline keyboard hints (Enter / Esc) inside the countdown row. */
+.confirm-kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+/* ── Chat message action buttons: hover-reveal ── */
+/* .mb-actions wraps the per-message icon buttons (copy/retry). It's hidden
+   by default and revealed when the user hovers the containing .mb-row or
+   tabs a descendant into focus. */
+.mb-row .mb-actions {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.mb-row:hover .mb-actions,
+.mb-row:focus-within .mb-actions {
+  opacity: 1;
+}
+
+/* Touch devices have no hover — keep the action row permanently visible so
+   copy/retry remain discoverable on iOS/Android. Matches the a11y audit's
+   touch-discoverability rule for .mb-actions. */
+@media (hover: none) {
+  .mb-row .mb-actions {
+    opacity: 1;
+  }
+}
+
+
+@keyframes pulse {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Terminal Modal animations ── */
+@keyframes tm-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tm-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes tm-modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes tm-modal-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.96) translateY(8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-panel::after,
+  .hero-panel::before,
+  .glass-header::after,
+  .electric-card::after,
+  .app-shell::after,
+  .pairing-shell::after,
+  .pairing-card::before,
+  .motion-rise,
+  .electric-loader {
+    animation: none !important;
+  }
+
+  .electric-button {
+    transition: none !important;
+  }
+
+  /* Pulsing indicators — freeze the dots in a visible-but-still state */
+  .pulse-dots,
+  [data-pulse-dots] {
+    animation: none !important;
+    opacity: 0.6 !important;
+  }
+
+  /* Blinking cursors / carets */
+  [data-blink] {
+    animation: none !important;
+  }
+
+  /* Chat message + confirmation card entrance animations */
+  .message-enter,
+  .confirm-card-enter {
+    animation: none !important;
+  }
+
+  /* Countdown bar — snap to current width instead of animating */
+  .confirm-progress-bar,
+  .portfolio-progress-ring {
+    animation: none !important;
+  }
+
+  /* Button press feedback — no scale on reduced motion */
+  .btn-press:active:not(:disabled) {
+    transform: none !important;
+  }
+
+  /* Loading ring + fade-in — stay static */
+  .app-fade-in,
+  .status-dot-live,
+  .settings-manage-btn {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  /* Inline-animated loading ring (LoadingScreen) + spinner icons
+     (SkillUploadModal, PortfolioWidget refresh, etc.) — opt in via
+     data-attribute so reduced-motion freezes the animation without
+     having to promote every inline `animation:` to a CSS class. */
+  [data-loading-ring],
+  [data-spinning] {
+    animation: none !important;
+  }
+
+  /* Ghost symbol bob — frozen on reduced-motion. */
+  .ghost-symbol-bob {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* Drawer slide + scrim fade — opt in via data-attribute so reduced-motion
+     freezes the slide/fade without per-drawer class hooks. Applied to
+     WatchlistAddDrawer, NotificationDrawer, NewsDetailDrawer panels and
+     their scrims. */
+  [data-drawer-panel],
+  [data-drawer-scrim] {
+    transition: none !important;
+  }
+
+  /* Route view-transitions (if added later) — disable both old and new */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* ── /chart standalone route — headless screenshot mode ────────────────────
+   .chart-page--headless: fixed 1200×720 canvas consumed by Bun.WebView.
+   :has() hides Layout siblings (nav/sidebar/topbar) without modifying
+   Layout.tsx. Safe target: Bun.WebView uses WebKit/Chromium, both support
+   :has(). ──────────────────────────────────────────────────────────────── */
+
+.chart-page {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-page--headless {
+  position: fixed;
+  inset: 0;
+  width: 1200px;
+  height: 720px;
+  z-index: 9999;
+  background: var(--color-surface-base, #0b1118);
+}
+
+/* Hide all Layout chrome when headless chart is present */
+body:has(.chart-page--headless) :is(nav, aside, header[role="banner"]) {
+  display: none !important;
+}
+
+body:has(.chart-page--headless) {
+  overflow: hidden;
+}
+
+/* Disable all animations/transitions inside headless mode */
+.chart-page--headless * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.chart-error {
+  padding: 1rem;
+  color: var(--color-text-secondary, #b0b4bd);
+  font-size: 13px;
+}

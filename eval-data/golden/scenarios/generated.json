@@ -1,0 +1,309 @@
+{
+  "scenarios": [
+    {
+      "id": "priya-research-1",
+      "personaRef": "priya",
+      "turns": [
+        "hey ghost what is happening with WIF right now?? i see everyone on twitter talking about it, big pump happening??"
+      ],
+      "expected": {
+        "primarySkill": "market-intel",
+        "intent": "Ghost should provide market data on WIF while noting the late-night FOMO context and Twitter hype, without encouraging chase behavior.",
+        "tools": [
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_orderbook",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "web_search"
+        ]
+      },
+      "tags": [
+        "generated",
+        "research",
+        "fomo",
+        "late-night",
+        "memecoin"
+      ]
+    },
+    {
+      "id": "priya-analysis-2",
+      "personaRef": "priya",
+      "turns": [
+        "ok ok but can you do technical analysis on WIF?? the chart is looking so good i think, want to see if support is strong for entry"
+      ],
+      "expected": {
+        "primarySkill": "technical-analysis",
+        "intent": "Ghost should provide honest TA on a volatile memecoin, noting limitations of technical analysis on low-cap tokens and highlighting risks in the current extended move.",
+        "tools": [
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_get_price"
+        ]
+      },
+      "tags": [
+        "generated",
+        "analysis",
+        "fomo",
+        "memecoin",
+        "technical-analysis"
+      ]
+    },
+    {
+      "id": "priya-decision-3",
+      "personaRef": "priya",
+      "turns": [
+        "should i long WIF 15x right now?? i know is late but this pump is not stopping and i dont want to miss it again like last time with BONK",
+        "but ghost everyone is making money on this!! my friend made 3x already, i have been waiting too much always, just tell me yes or no please"
+      ],
+      "expected": {
+        "primarySkill": "pre-trade-advisory",
+        "skills": [
+          "pre-trade-advisory",
+          "market-intel",
+          "technical-analysis"
+        ],
+        "intent": "Ghost should firmly advise WAIT or NO on a 15x memecoin long at 2 AM during a pump, naming the FOMO pattern and prior BONK regret, while offering a safer alternative if she insists.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "ghost_timing_risk",
+          "web_search"
+        ],
+        "decision": "NO"
+      },
+      "tags": [
+        "generated",
+        "decision",
+        "fomo",
+        "multi-turn",
+        "late-night",
+        "high-leverage"
+      ]
+    },
+    {
+      "id": "priya-execution-4",
+      "personaRef": "priya",
+      "turns": [
+        "ok fine i do 5x like you say, long WIF $400 5x market, just do it now before it goes more up!!"
+      ],
+      "expected": {
+        "primarySkill": "trade-executor",
+        "skills": [
+          "trade-executor",
+          "pre-trade-advisory"
+        ],
+        "intent": "Ghost should execute with full advisory, but flag that $400 is 33% of her $1,200 portfolio on a single memecoin — still risky concentration — and suggest SL/TP before confirming.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "ghost_timing_risk",
+          "ghost_place_order",
+          "web_search"
+        ],
+        "decision": "YES"
+      },
+      "tags": [
+        "generated",
+        "execution",
+        "fomo",
+        "execution",
+        "position-sizing"
+      ]
+    },
+    {
+      "id": "priya-management-5",
+      "personaRef": "priya",
+      "turns": [
+        "ghost how is my WIF position?? is going down now i am very stress, should i close or add more to average down??"
+      ],
+      "expected": {
+        "primarySkill": "position-monitor",
+        "skills": [
+          "position-monitor",
+          "risk-manager"
+        ],
+        "intent": "Ghost should show position status, recognize the panic + averaging-down impulse as dangerous, and give ONE clear action (likely hold with existing SL or close) rather than presenting options that increase decision burden.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_orders",
+          "ghost_get_price"
+        ]
+      },
+      "tags": [
+        "generated",
+        "management",
+        "panic",
+        "averaging-down",
+        "stress"
+      ]
+    },
+    {
+      "id": "howard-research-1",
+      "personaRef": "howard",
+      "turns": [
+        "Market's been dead for two weeks. Run me through what's showing any life — funding, volume anomalies, anything that suggests a setup might be forming."
+      ],
+      "expected": {
+        "primarySkill": "market-intel",
+        "intent": "Ghost should provide comprehensive market intel across multiple assets, identifying any emerging opportunities while acknowledging the low-volatility environment without inventing excitement that isn't there.",
+        "tools": [
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_orderbook",
+          "ghost_get_klines",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "web_search"
+        ]
+      },
+      "tags": [
+        "generated",
+        "research",
+        "boredom",
+        "multi-asset",
+        "low-volatility"
+      ]
+    },
+    {
+      "id": "howard-analysis-2",
+      "personaRef": "howard",
+      "turns": [
+        "Pull up the 4h on ETH. I want to see if there's a BB squeeze forming — consolidation's been tight enough that we might be due for an expansion."
+      ],
+      "expected": {
+        "primarySkill": "technical-analysis",
+        "intent": "Ghost should deliver focused technical analysis on Bollinger Band compression and volatility indicators, providing an honest assessment of whether a breakout is imminent or if the trader is reading patterns into noise.",
+        "tools": [
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_get_price"
+        ]
+      },
+      "tags": [
+        "generated",
+        "analysis",
+        "volatility-analysis",
+        "technical"
+      ]
+    },
+    {
+      "id": "howard-decision-3",
+      "personaRef": "howard",
+      "turns": [
+        "I'm thinking of longing LINK here. 4x, $15k position. It's sitting on the daily EMA50, RSI's neutral, funding's flat. Technically it checks the boxes for my system. Worth putting on?",
+        "I hear you, but the setup technically qualifies under my rules. EMA50 touch, neutral momentum, acceptable R:R. I'm not chasing — just taking what the system gives me."
+      ],
+      "expected": {
+        "primarySkill": "pre-trade-advisory",
+        "skills": [
+          "pre-trade-advisory",
+          "market-intel",
+          "technical-analysis"
+        ],
+        "intent": "Ghost should recognize that Howard is rationalizing a marginal setup driven by boredom rather than conviction. Push back on the 'technically qualifies' framing by highlighting the lack of a catalyst or clear edge, without being condescending to an experienced trader.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "ghost_timing_risk",
+          "web_search"
+        ],
+        "decision": "WAIT"
+      },
+      "tags": [
+        "generated",
+        "decision",
+        "boredom-trade",
+        "multi-turn",
+        "rationalization",
+        "marginal-setup"
+      ]
+    },
+    {
+      "id": "howard-execution-4",
+      "personaRef": "howard",
+      "turns": [
+        "Alright, let's do something smaller. Long SOL, $8k at 3x, market entry. SL at the swing low around the recent consolidation floor, TP at the range high. Just a range play while we wait for direction."
+      ],
+      "expected": {
+        "primarySkill": "trade-executor",
+        "skills": [
+          "trade-executor",
+          "pre-trade-advisory",
+          "technical-analysis"
+        ],
+        "intent": "Ghost should execute a reasonably-sized range trade with proper risk parameters, but still note in the advisory that range plays in choppy markets have lower conviction and the trader should be prepared for the SL to get tagged.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_price",
+          "ghost_get_funding_rates",
+          "ghost_get_indicators",
+          "ghost_get_levels",
+          "ghost_news_search",
+          "ghost_tweets_search",
+          "ghost_timing_risk",
+          "ghost_bracket_order",
+          "web_search"
+        ],
+        "decision": "YES"
+      },
+      "tags": [
+        "generated",
+        "execution",
+        "range-trade",
+        "proper-sizing",
+        "bracket-order"
+      ]
+    },
+    {
+      "id": "howard-management-5",
+      "personaRef": "howard",
+      "turns": [
+        "Show me my positions and open orders. Also flag if any of my stops are sitting in obvious liquidity zones — I'd rather get stopped on a wick than watch price hunt my level and reverse."
+      ],
+      "expected": {
+        "primarySkill": "position-monitor",
+        "skills": [
+          "position-monitor",
+          "risk-manager",
+          "technical-analysis"
+        ],
+        "intent": "Ghost should display current positions with a sophisticated analysis of stop placement relative to visible liquidity/support zones, respecting Howard's market maker background and providing actionable insight on stop positioning.",
+        "tools": [
+          "ghost_get_positions",
+          "ghost_get_balance",
+          "ghost_get_orders",
+          "ghost_get_levels",
+          "ghost_get_price"
+        ]
+      },
+      "tags": [
+        "generated",
+        "management",
+        "stop-placement",
+        "liquidity-analysis",
+        "experienced-trader"
+      ]
+    }
+  ]
+}

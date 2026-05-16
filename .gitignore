@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tgz
+*.log
+.DS_Store
+
+# Test artifacts
+eval-results/
+web/playwright-report/
+web/test-results/
+
+# Local environments
+.env
+.env.local
+.env.*.local

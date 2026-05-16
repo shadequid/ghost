@@ -1,0 +1,73 @@
+{
+  "name": "@hyperflow/ghost",
+  "version": "0.0.1",
+  "description": "AI trading companion for Hyperliquid perpetuals",
+  "type": "module",
+  "license": "MIT",
+  "author": "gon <hyperflow2026@proton.me>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperflowdotfun/ghost.git"
+  },
+  "homepage": "https://github.com/hyperflowdotfun/ghost#readme",
+  "bugs": {
+    "url": "https://github.com/hyperflowdotfun/ghost/issues"
+  },
+  "keywords": [
+    "hyperliquid",
+    "perpetuals",
+    "trading",
+    "ai",
+    "agent",
+    "llm",
+    "crypto",
+    "defi"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "ghost": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "dev": "cd web && bun run build && cd .. && bun run --watch src/index.ts",
+    "build": "bun run build:web && bun run build:bundle && bun run build:assets",
+    "build:web": "cd web && bun run build",
+    "build:bundle": "bun build src/index.ts --outdir dist --target bun --banner '#!/usr/bin/env bun'",
+    "build:assets": "node scripts/copy-assets.mjs",
+    "prepack": "bun run build",
+    "check": "tsc --noEmit",
+    "test": "bun test",
+    "eval": "bun run src/eval/cli.ts",
+    "web:build": "cd web && bun run build",
+    "web:dev": "cd web && bun run dev"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.139",
+    "@clack/prompts": "^1.1.0",
+    "@grammyjs/auto-retry": "^2.0.2",
+    "@mariozechner/pi-agent-core": "0.68.1",
+    "@mariozechner/pi-ai": "0.68.1",
+    "@nktkas/hyperliquid": "^0.32.2",
+    "@sinclair/typemap": "^0.10.1",
+    "@types/bun": "latest",
+    "cron-parser": "^5.5.0",
+    "elysia": "latest",
+    "grammy": "^1.41.0",
+    "js-tiktoken": "^1.0.21",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "typescript": "^5.7.0",
+    "viem": "^2.47.6",
+    "zod": "^3.24.0"
+  }
+}
