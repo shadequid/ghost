@@ -90,7 +90,7 @@ EOF
 
 ### Release Model
 
-Ghost ships as [`@hyperflow.fun/ghost`](https://www.npmjs.com/package/@hyperflow.fun/ghost) on npm. End users install with `bun install -g @hyperflow.fun/ghost`; contributors continue to run from a development clone (`bun run dev`). See [docs/operations/update.md](./operations/update.md) for the end-user update flow.
+Ghost ships as [`@hyperflow.fun/ghost`](https://www.npmjs.com/package/@hyperflow.fun/ghost) on npm. End users install with `npm install -g @hyperflow.fun/ghost`; contributors continue to run from a development clone (`bun run dev`). See [docs/operations/update.md](./operations/update.md) for the end-user update flow.
 
 ## Principles
 

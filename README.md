@@ -24,7 +24,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 **1. Install Ghost**
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+npm install -g @hyperflow.fun/ghost
 ```
 
 **2. Onboard**
@@ -77,7 +77,7 @@ All data stored in `~/.ghost/` (config, credentials, database, memory, sessions)
 - If you installed an earlier version, uninstall first — this release contains breaking changes:
   ```bash
   ghost uninstall
-  bun remove -g @hyperflow.fun/ghost
+  npm uninstall -g @hyperflow.fun/ghost
   ```
 
 ## Security

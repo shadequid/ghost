@@ -36,7 +36,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 Then install Ghost globally:
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+npm install -g @hyperflow.fun/ghost
 ```
 
 Verify:
@@ -45,7 +45,9 @@ Verify:
 ghost --version
 ```
 
-If `ghost` is not on PATH, instruct the user to restart their terminal (or source their shell rc file). The Bun installer prints the exact PATH line to add.
+If `ghost --version` fails immediately after install, instruct the user to restart their terminal so the new PATH entry from npm's global bin directory is picked up.
+
+Note: Ghost requires Bun at runtime — the `ghost` binary is a Bun script (`#!/usr/bin/env bun`). Make sure Step 2 (Bun install) succeeded before running any `ghost` command.
 
 ## Step 3: AI Agent Onboard Flow
 

@@ -14,10 +14,12 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 ## Install
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+npm install -g @hyperflow.fun/ghost
 ```
 
-This installs the `ghost` command globally. If the command isn't found, restart your terminal or add `~/.bun/bin` to your PATH (the Bun installer prints the exact line for your shell).
+This installs the `ghost` command globally. If the command isn't found after install, restart your terminal so the new PATH entry is picked up.
+
+> Ghost requires Bun at runtime even when installed via npm — the `ghost` binary is a Bun script. If you skipped the Bun install step above, run `ghost` and follow the printed install hint.
 
 ## Setup
 
@@ -81,7 +83,7 @@ Your config, wallets, chat history, memory, and skills under `~/.ghost/` are pre
 If `ghost update` fails, you can always reinstall manually:
 
 ```bash
-bun install -g @hyperflow.fun/ghost@latest
+npm install -g @hyperflow.fun/ghost@latest
 ```
 
 ## Change Provider / Model
@@ -100,7 +102,7 @@ To use Ollama, vLLM, LM Studio, or any OpenAI-compatible endpoint, run `ghost on
 
 ```bash
 ghost uninstall                       # Stop service + remove ~/.ghost (interactive)
-bun remove -g @hyperflow.fun/ghost    # Remove the binary
+npm uninstall -g @hyperflow.fun/ghost    # Remove the binary
 ```
 
 `ghost uninstall` prints the second command at the end so you don't need to remember it.

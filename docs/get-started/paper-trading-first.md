@@ -47,7 +47,7 @@ Ghost does not currently support switching modes in place. To move from paper to
 
 ```bash
 ghost uninstall                            # Remove service + data
-bun install -g @hyperflow.fun/ghost        # Reinstall
+npm install -g @hyperflow.fun/ghost        # Reinstall
 ghost onboard                              # Pick "Live trading" this time
 ```
 

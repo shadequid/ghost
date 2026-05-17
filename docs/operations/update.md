@@ -20,7 +20,7 @@ ghost update --channel=latest  # Back to stable
 If `ghost update` fails (e.g. the binary is broken), reinstall manually:
 
 ```bash
-bun install -g @hyperflow.fun/ghost@latest
+npm install -g @hyperflow.fun/ghost@latest
 ```
 
 ## Version Check Service

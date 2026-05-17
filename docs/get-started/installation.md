@@ -4,13 +4,20 @@ Install Ghost as a global Bun package, run the setup wizard, open the dashboard.
 
 ## Prerequisites
 
-- **[Bun](https://bun.sh) >= 1.1** — install with `curl -fsSL https://bun.sh/install | bash` (macOS / Linux) or `powershell -c "irm bun.sh/install.ps1 | iex"` (Windows)
+- **[Node.js](https://nodejs.org) + npm** — for installing the package
+- **[Bun](https://bun.sh) >= 1.1** — Ghost runs as a Bun script at runtime
+  ```bash
+  # macOS / Linux
+  curl -fsSL https://bun.sh/install | bash
+  # Windows (PowerShell)
+  powershell -c "irm bun.sh/install.ps1 | iex"
+  ```
 - **Claude Code CLI** (optional) — only if using the `claude-cli` provider: `npm install -g @anthropic-ai/claude-code`
 
 ## Install
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+npm install -g @hyperflow.fun/ghost
 ```
 
 Verify:
@@ -19,7 +26,7 @@ Verify:
 ghost --version
 ```
 
-If the command isn't found, restart your terminal — the Bun installer adds `~/.bun/bin` to your PATH on first install.
+If `ghost` isn't found, restart your terminal so npm's global `bin` directory is picked up on PATH.
 
 ## Onboard (Setup Wizard)
 
@@ -97,7 +104,7 @@ ghost update --channel=rc     # Switch to release-candidate channel
 Or reinstall manually:
 
 ```bash
-bun install -g @hyperflow.fun/ghost@latest
+npm install -g @hyperflow.fun/ghost@latest
 ```
 
 Your `~/.ghost/` data is preserved across updates.
@@ -106,7 +113,7 @@ Your `~/.ghost/` data is preserved across updates.
 
 ```bash
 ghost uninstall                       # Stop service + remove ~/.ghost (interactive)
-bun remove -g @hyperflow.fun/ghost    # Remove the binary
+npm uninstall -g @hyperflow.fun/ghost    # Remove the binary
 ```
 
 `ghost uninstall` prints the second command at the end so you don't need to remember it.

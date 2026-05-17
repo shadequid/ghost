@@ -1,6 +1,6 @@
 # CLI Commands Reference
 
-All commands run via the `ghost` binary, available after `bun install -g @hyperflow.fun/ghost`.
+All commands run via the `ghost` binary, available after `npm install -g @hyperflow.fun/ghost`.
 
 ## Core Commands
 

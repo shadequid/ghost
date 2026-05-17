@@ -15,7 +15,7 @@ Quick guides to install, understand, and use Ghost.
 
 ```bash
 # 1. Install (requires Bun — https://bun.sh)
-bun install -g @hyperflow.fun/ghost
+npm install -g @hyperflow.fun/ghost
 
 # 2. Onboard — pick trading mode, LLM, and say "Yes" to install the service
 ghost onboard

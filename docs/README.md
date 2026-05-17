@@ -20,7 +20,7 @@ Ghost walks beside you. It sees your positions, understands your emotions, and i
 Requires [Bun](https://bun.sh) >= 1.1.
 
 ```bash
-bun install -g @hyperflow.fun/ghost     # Install
+npm install -g @hyperflow.fun/ghost     # Install
 ghost onboard                           # One-time setup: pick mode, LLM, install service
 # → say "Yes" to install the service; Ghost starts in the background
 ```
