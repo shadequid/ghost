@@ -13,21 +13,17 @@ Quick guides to install, understand, and use Ghost.
 
 ## Quick Start
 
-Ghost is in early access — install by cloning the repo:
-
 ```bash
-# 1. Clone + install
-git clone https://github.com/hyperflowdotfun/ghost.git && cd ghost
-bun install && cd web && bun install && cd ..
+# 1. Install (requires Bun — https://bun.sh)
+bun install -g @hyperflow.fun/ghost
 
-# 2. Setup (interactive)
-bun run dev onboard --paper     # $10k simulated capital
+# 2. Onboard — pick trading mode, LLM, and say "Yes" to install the service
+ghost onboard
 
-# 3. Start
-bun run dev                     # Opens http://localhost:15401
+# 3. Open the dashboard
+# http://localhost:15401
 
 # 4. Chat
-# Visit web dashboard or connect Telegram
 # "Show me my portfolio"
 ```
 

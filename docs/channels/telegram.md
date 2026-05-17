@@ -8,7 +8,7 @@ Ghost's Telegram bot lets you chat, check your portfolio, view positions, and ap
 
 2. **Connect to Ghost:** Run the setup wizard:
    ```bash
-   bun run dev onboard
+   ghost onboard
    ```
    When asked, choose **Telegram** as your channel. Paste the bot token.
 
@@ -70,7 +70,7 @@ Ghost only responds to the user IDs you've paired. The bot won't reply to unknow
 
 | Problem | Fix |
 |---------|-----|
-| Bot doesn't respond | Check that the bot token is correct and the daemon is running (`bun run dev status`). |
+| Bot doesn't respond | Check that the bot token is correct and the daemon is running (`ghost status`). |
 | Pairing code expired | Run `/start` again to get a new code. |
 | "Not authorized" on approval | The pairing request expired or was already approved. Open the Telegram setup modal (icon in top bar) and approve a fresh request, or try `/start` again. |
-| Bot offline | Run `bun run dev daemon` to start the server. |
+| Bot offline | Run `ghost daemon` to start the server. |

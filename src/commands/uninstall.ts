@@ -137,7 +137,7 @@ export async function runUninstall(deps: UninstallDeps): Promise<void> {
 
   // 6. Remove bun global package.
   try {
-    const r = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn: deps.spawn });
+    const r = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn: deps.spawn });
     if (r.ok) {
       deps.log(`✓ ${r.info}`);
       anyProgress = true;
@@ -284,7 +284,7 @@ export async function removeBunPackage(deps: RemoveBunPackageDeps): Promise<Remo
     return { ok: false, info: `bun pm ls -g failed (exit ${ls.exitCode}): ${msg}` };
   }
   // Match the package name followed by '@' (versioned entry), end-of-line, or whitespace.
-  // e.g. "├── @hyperflow/ghost@0.0.2"
+  // e.g. "├── @hyperflow.fun/ghost@0.0.2"
   const escaped = deps.packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const present = new RegExp(`${escaped}(@|$|\\s)`, "m").test(ls.stdout);
   if (!present) {

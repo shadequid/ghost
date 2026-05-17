@@ -13,30 +13,47 @@ AI companion for Hyperliquid perpetual contract traders. Not a dashboard. Not a 
 
 ## Quick Start
 
-Ghost is in early access — install by cloning the repository:
+Requires **[Bun](https://bun.sh) >= 1.1**:
 
 ```bash
-git clone https://github.com/hyperflowdotfun/ghost.git
-cd ghost
-bun install
-cd web && bun install && cd ..
-bun run dev onboard            # Setup wizard (one-time)
-bun run dev                    # Build web + start gateway (port 15401)
+# Install Bun (if you don't have it)
+curl -fsSL https://bun.sh/install | bash             # macOS / Linux
+powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 ```
 
-### Commands
+**1. Install Ghost**
 
 ```bash
-bun run dev daemon                   # Start Ghost
-bun run dev daemon --paper           # Paper trading (simulated, 10k USDC)
-bun run dev daemon --paper -b 50000  # Paper mode with custom balance
-bun run dev status                   # Config summary
-bun run dev doctor                   # Full diagnostic
+bun install -g @hyperflow.fun/ghost
 ```
 
-### LLM Providers
+**2. Onboard**
 
-OpenRouter, Anthropic (API), Claude Code, OpenAI, Google Gemini, or any custom OpenAI-compatible endpoint.
+```bash
+ghost onboard
+```
+
+You'll be asked to pick:
+
+- **Trading Mode** — Paper (virtual funds, no wallet) or Live (real trades on Hyperliquid)
+- **LLM Model** — Claude Code, Anthropic, OpenAI, Gemini, OpenRouter, or a custom endpoint
+- **Install Ghost service** — Select **Yes** to keep Ghost running in the background
+
+**3. Open the dashboard**
+
+Visit **http://localhost:15401** and start trading.
+
+## Commands
+
+```bash
+ghost daemon          # Start Ghost in the foreground
+ghost status          # Show config and auth summary
+ghost doctor          # Full diagnostic
+ghost update          # Check for a new version and reinstall in place
+ghost uninstall       # Remove service + ~/.ghost
+```
+
+See the [User Guide](USER_GUIDE.md) for the full reference.
 
 ## Documentation
 
@@ -50,29 +67,18 @@ OpenRouter, Anthropic (API), Claude Code, OpenAI, Google Gemini, or any custom O
 | [Personas](PERSONAS.md) | Trader personas and emotion-response framework |
 | [Journeys](JOURNEYS.md) | Journey narratives — Ghost in action for each persona |
 
-## Tech Stack
-
-Bun + TypeScript, pi-agent-core + pi-ai, ElysiaJS, @nktkas/hyperliquid, grammY, React + Vite + Tailwind.
-
 ## Data Storage
 
-All data stored in `~/.ghost/` (config, credentials, database, memory, sessions).
+All data stored in `~/.ghost/` (config, credentials, database, memory, sessions). Nothing leaves your machine.
 
-## Uninstall
+## Notes
 
-Delete the repository and optionally your data:
-
-```bash
-# macOS / Linux
-rm -rf ghost          # Delete the clone
-rm -rf ~/.ghost          # Delete all Ghost data (optional)
-
-# Windows (PowerShell)
-Remove-Item -Recurse -Force ghost          # Delete the clone
-Remove-Item -Recurse -Force ~/.ghost          # Delete all Ghost data (optional)
-```
-
-See [User Guide](USER_GUIDE.md#uninstall) for details.
+- Ghost does not yet support switching between Paper and Live mode. To switch, uninstall and reinstall.
+- If you installed an earlier version, uninstall first — this release contains breaking changes:
+  ```bash
+  ghost uninstall
+  bun remove -g @hyperflow.fun/ghost
+  ```
 
 ## Security
 

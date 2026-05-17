@@ -10,8 +10,8 @@ Ghost supports 20+ LLM providers. Pick one during setup or switch anytime.
 ## Common Tasks
 
 ```bash
-bun run dev onboard                          # Change your provider / model
-bun run dev providers                        # List all available providers
-bun run dev providers --models <provider>    # List models for a provider
-bun run dev doctor                           # Test your current provider
+ghost onboard                          # Change your provider / model
+ghost providers                        # List all available providers
+ghost providers --models <provider>    # List models for a provider
+ghost doctor                           # Test your current provider
 ```

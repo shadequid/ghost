@@ -90,7 +90,7 @@ EOF
 
 ### Release Model
 
-Releases are not published while Ghost is in early access. Contributors run from the development clone. See [docs/operations/update.md](./operations/update.md).
+Ghost ships as [`@hyperflow.fun/ghost`](https://www.npmjs.com/package/@hyperflow.fun/ghost) on npm. End users install with `bun install -g @hyperflow.fun/ghost`; contributors continue to run from a development clone (`bun run dev`). See [docs/operations/update.md](./operations/update.md) for the end-user update flow.
 
 ## Principles
 

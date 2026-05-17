@@ -7,7 +7,7 @@
 
 export const DEFAULT_REGISTRY_URL = "https://registry.npmjs.org/";
 
-export const PACKAGE_NAME = "@hyperflow/ghost";
+export const PACKAGE_NAME = "@hyperflow.fun/ghost";
 
 /**
  * Resolve the registry URL. Returns with a trailing slash so endpoints

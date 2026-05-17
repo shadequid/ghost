@@ -1,7 +1,7 @@
 /**
  * `ghost update` command — fetches the latest published version from
  * the Package Registry, compares to the currently installed version,
- * shells out to `bun install -g @hyperflow/ghost@<latest>`, and
+ * shells out to `bun install -g @hyperflow.fun/ghost@<latest>`, and
  * restarts the registered background service (systemd/launchd/schtasks)
  * so the daemon picks up the new binary. User data under `~/.ghost/`
  * is never touched.

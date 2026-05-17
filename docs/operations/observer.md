@@ -86,7 +86,7 @@ Tunable via `~/.ghost/config.json` under `observer.*`:
 
 **Missing events**
 - Ensure `observer.enabled: true` in config.
-- Check that daemon is running (`bun run dev daemon stop` returns a pid).
+- Check that daemon is running (`ghost daemon stop` returns a pid).
 - Verify REST endpoints are reachable (HL API issue).
 - For fills: make sure REST sync just fired (wait up to `syncIntervalMs`).
 

@@ -1,6 +1,6 @@
 /**
  * Version-check service. Polls the registry's npm metadata endpoint for
- * `@hyperflow/ghost`, parses `dist-tags.<tag>`, and caches the
+ * `@hyperflow.fun/ghost`, parses `dist-tags.<tag>`, and caches the
  * result in memory with a TTL. All failures (network, non-200,
  * malformed body) return `null` — the caller treats "cannot check" the
  * same as "no update".

@@ -11,7 +11,7 @@ Ghost connects to you through multiple channels. Choose the one that fits your w
 
 | Channel | Best for | Setup |
 |---------|----------|-------|
-| **Telegram** | On-the-go checks, approvals, quick questions | Run `bun run dev onboard`, paste bot token |
-| **Web Dashboard** | Full control, analytics, history, memory, advanced features | Automatic after `bun run dev onboard`, visit `http://localhost:15401` |
+| **Telegram** | On-the-go checks, approvals, quick questions | Run `ghost onboard`, paste bot token |
+| **Web Dashboard** | Full control, analytics, history, memory, advanced features | Automatic after `ghost onboard`, visit `http://localhost:15401` |
 
 Both channels work simultaneously—pair your phone via Telegram and open the dashboard on your laptop at the same time.

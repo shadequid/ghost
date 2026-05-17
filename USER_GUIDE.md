@@ -2,91 +2,108 @@
 
 AI trading companion for Hyperliquid perpetual contract traders.
 
-## Install
+## Prerequisites
 
-Ghost is in early access — install by cloning the repository:
+**[Bun](https://bun.sh) >= 1.1** — installs in one line:
 
 ```bash
-git clone https://github.com/hyperflowdotfun/ghost.git
-cd ghost
-bun install
-cd web && bun install && cd ..
+curl -fsSL https://bun.sh/install | bash             # macOS / Linux
+powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 ```
+
+## Install
+
+```bash
+bun install -g @hyperflow.fun/ghost
+```
+
+This installs the `ghost` command globally. If the command isn't found, restart your terminal or add `~/.bun/bin` to your PATH (the Bun installer prints the exact line for your shell).
 
 ## Setup
 
-Run the setup wizard on first install:
+Run the onboarding wizard:
 
 ```bash
-bun run dev onboard
+ghost onboard
 ```
 
-You'll pick a provider, a model, and a trading mode (paper or live).
+You'll be asked to choose:
 
-## Start Ghost
+1. **Trading Mode**
+   - **Paper Trading** — No wallet needed. Trade with virtual funds (10,000 USDC by default).
+   - **Live Trading** — Connect your wallet, trade real money on Hyperliquid.
+2. **LLM Model** — Claude Code (recommended, no API key), Anthropic, OpenAI, Gemini, OpenRouter, or a custom endpoint.
+3. **Install Ghost service** — Select **Yes** so Ghost stays running in the background after reboot.
 
-```bash
-bun run dev
-```
+## Open the Dashboard
 
-Dashboard: **http://localhost:15401**
+Visit **http://localhost:15401** and start chatting.
 
-Press `Ctrl+C` to stop.
-
-### Paper Trading
-
-```bash
-bun run dev daemon --paper               # 10,000 USDC simulated
-bun run dev daemon --paper -b 50000      # Custom balance
-```
+> Ghost does **not** support switching between Paper and Live mode after onboarding. To switch, uninstall and reinstall.
 
 ## Common Commands
 
 ```bash
-bun run dev                         # Start Ghost
-bun run dev daemon --paper          # Paper trading (simulated, 10k USDC)
-bun run dev daemon --paper -b 50000 # Paper with custom balance
-bun run dev status                  # Config summary
-bun run dev doctor                  # Full diagnostic
+ghost daemon                 # Start Ghost in the foreground (Ctrl+C to stop)
+ghost status                 # Config and auth summary
+ghost doctor                 # Full diagnostic (config, DB, provider)
+ghost logs                   # Tail the daemon log
+ghost daemon stop            # Stop the background service
+ghost update                 # Check for new version and reinstall
+ghost --version              # Print Ghost version
+```
+
+### Channels (Telegram)
+
+```bash
+ghost channel setup telegram     # Connect a Telegram bot
+ghost channel status             # Show channel state
+ghost channel pair               # Approve pairing requests
+```
+
+### Proactive Companion
+
+```bash
+ghost proactive status           # Show current setting
+ghost proactive on               # Enable proactive messages
+ghost proactive off              # Disable
 ```
 
 ## Update
 
-Update by pulling the latest code:
-
 ```bash
-git pull
-bun install
+ghost update                     # Check registry + reinstall in place
+ghost update --channel=rc        # Switch to release-candidate channel
 ```
 
-Your config, wallets, chat history, memory, and skills under `~/.ghost/` are not touched.
+Your config, wallets, chat history, memory, and skills under `~/.ghost/` are preserved across updates.
+
+If `ghost update` fails, you can always reinstall manually:
+
+```bash
+bun install -g @hyperflow.fun/ghost@latest
+```
 
 ## Change Provider / Model
 
+Re-run the wizard at any time:
+
 ```bash
-bun run dev onboard
+ghost onboard
 ```
 
 ### Custom / Self-Hosted Endpoints
 
-To use Ollama, vLLM, LM Studio, or any OpenAI-compatible endpoint, run
-`bun run dev onboard`, pick **Custom**, and Ghost will write your provider to
-`~/.ghost/models.json`. For the full schema and examples see
-[`docs/CUSTOM_MODELS.md`](docs/CUSTOM_MODELS.md).
+To use Ollama, vLLM, LM Studio, or any OpenAI-compatible endpoint, run `ghost onboard`, pick **Custom**, and Ghost will write your provider to `~/.ghost/models.json`. See [`docs/CUSTOM_MODELS.md`](docs/CUSTOM_MODELS.md) for the schema.
 
 ## Uninstall
 
-Delete the repository and optionally your data:
-
 ```bash
-# macOS / Linux
-rm -rf ghost          # Delete the clone
-rm -rf ~/.ghost          # Delete all Ghost data (optional)
-
-# Windows (PowerShell)
-Remove-Item -Recurse -Force ghost          # Delete the clone
-Remove-Item -Recurse -Force ~/.ghost          # Delete all Ghost data (optional)
+ghost uninstall                       # Stop service + remove ~/.ghost (interactive)
+bun remove -g @hyperflow.fun/ghost    # Remove the binary
 ```
+
+`ghost uninstall` prints the second command at the end so you don't need to remember it.
 
 ## Troubleshooting
 

@@ -95,7 +95,7 @@ describe("VersionCheckService", () => {
   });
 
   test("returns null when dist-tags.latest is missing", async () => {
-    mockedFetch = mock(async () => jsonResponse({ name: "@hyperflow/ghost" }));
+    mockedFetch = mock(async () => jsonResponse({ name: "@hyperflow.fun/ghost" }));
     const svc = new VersionCheckService({ logger, ttlMs: 60_000, persistCache: noopPersist });
     expect(await svc.getLatest()).toBeNull();
   });

@@ -140,7 +140,7 @@ Location rules:
 Skills are enabled by default when first discovered. Users toggle via CLI or web:
 
 1. **Discovery:** `SkillService.syncState()` (src/services/skill-service.ts:64) scans disk, inserts new rows into `skill_states` table with `enabled=1`.
-2. **Toggle:** CLI `bun run dev skills disable {name}` or web `/skills` toggle updates `skill_states.enabled` for that skill.
+2. **Toggle:** CLI `ghost skills disable {name}` or web `/skills` toggle updates `skill_states.enabled` for that skill.
 3. **Prompt injection:** `ContextBuilder` queries disabled-skills set and omits them from **Active Skills** and **Skills Summary** sections.
 
 Disabled skills are never exposed to the LLM, reducing distraction and token usage.
@@ -148,10 +148,10 @@ Disabled skills are never exposed to the LLM, reducing distraction and token usa
 ### Testing a Skill Locally
 
 1. Create `~/.ghost/workspace/skills/{your-skill}/SKILL.md` with frontmatter + body.
-2. Restart daemon: `bun run dev daemon stop && bun run dev daemon` (or kill + rerun in dev).
-3. List skills: `bun run dev skills list` (CLI) or visit `/skills` (web UI).
+2. Restart daemon: `ghost daemon stop && ghost daemon` (or kill + rerun in dev).
+3. List skills: `ghost skills list` (CLI) or visit `/skills` (web UI).
 4. Look for your skill in the listing. If requirements are missing, it shows `available: false` + missing list.
-5. Toggle on (if off): `bun run dev skills enable {your-skill}` or use web UI.
+5. Toggle on (if off): `ghost skills enable {your-skill}` or use web UI.
 6. Chat with Ghost — your skill prose is now in the system prompt.
 
 Logs show skill injection: grep `ContextBuilder` in daemon output.
