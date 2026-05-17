@@ -1,41 +1,53 @@
 # Ghost — Install & Onboard Guide
 
-For AI agents. AI agents: follow the steps exactly. Use `AskUserQuestion` for all user selections.
+For AI agents. Follow the steps exactly. Use `AskUserQuestion` for all user selections.
 For end users, see [USER_GUIDE.md](USER_GUIDE.md).
 
-## Prerequisites
-
-- **Bun** >= 1.0 — Install at https://bun.sh or run: `curl -fsSL https://bun.sh/install | bash`
-- **Git** — For cloning the repository
-- **Claude Code CLI** (optional) — Only if using the `claude-cli` provider; install with `npm install -g @anthropic-ai/claude-code`
-
-## Step 1: Check if Ghost is Already Running
-
-Before proceeding with onboard, check if Ghost is already running:
+## Step 1: Check if Ghost is Already Installed
 
 ```bash
-curl -s http://127.0.0.1:15401/health || echo "not running"
+ghost --version 2>/dev/null || echo "not installed"
 ```
 
-- If it returns a response → Ghost is already running. **Do NOT run onboard again.** Tell the user Ghost is ready.
-- If "not running" → proceed with the steps below.
-
-Also check if config exists: `test -f ~/.ghost/config.json && echo "configured" || echo "needs onboard"`. If configured but daemon not running, just run `bun run dev daemon` (with `run_in_background: true`).
-
-## Step 2: Clone & Install Dependencies
+If installed, also check the daemon:
 
 ```bash
-git clone https://github.com/hyperflowdotfun/ghost.git
-cd ghost
-bun install
-cd web && bun install && cd ..
+curl -s http://127.0.0.1:15401/health || echo "daemon not running"
 ```
 
-Verify installation:
+- Both succeed → Ghost is ready. **Do NOT re-onboard.** Tell the user Ghost is running at http://localhost:15401.
+- Installed but daemon not running → run `ghost daemon` (with `run_in_background: true`) or `ghost onboard --service` to register the OS service.
+- Not installed → proceed to Step 2.
+
+Also check if config exists: `test -f ~/.ghost/config.json && echo "configured" || echo "needs onboard"`.
+
+## Step 2: Install Bun & Ghost
+
+Ghost requires **Bun >= 1.1**. Install Bun if missing:
 
 ```bash
-bun run dev status    # Should fail with "Config not found" — that's OK
+# macOS / Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Windows (PowerShell)
+powershell -c "irm bun.sh/install.ps1 | iex"
 ```
+
+Then install Ghost globally:
+
+```bash
+npm install -g @hyperflow.fun/ghost
+```
+
+Verify:
+
+```bash
+ghost --version
+```
+
+If `ghost --version` fails immediately after install, instruct the user to restart their terminal so the new PATH entry from npm's global bin directory is picked up.
+
+Note: Ghost requires Bun at runtime — the `ghost` binary is a Bun script (`#!/usr/bin/env bun`). Make sure Step 2 (Bun install) succeeded before running any `ghost` command.
 
 ## Step 3: AI Agent Onboard Flow
 
@@ -43,81 +55,79 @@ bun run dev status    # Should fail with "Config not found" — that's OK
 
 ### Step A — Pick Provider
 
-Use `AskUserQuestion` with these 4 options (user clicks to select):
+Use `AskUserQuestion` with these 4 options:
 
 - **Claude Code** (Recommended) — "No API key needed, uses Claude subscription"
 - **OpenAI** — "GPT-4o, GPT-5. Requires API key"
 - **Google Gemini** — "Gemini 2.0 Flash & Pro. Requires API key"
 - **OpenRouter** — "200+ models with 1 API key"
 
-If user selects "Other", run `bun run dev providers` to get the full JSON list, then show another `AskUserQuestion` with the next 4 providers from the list.
+If the user selects "Other", run `ghost providers` to get the full JSON list, then show another `AskUserQuestion` with the next 4 providers from the list.
 
 ### Step B — Pick Model
 
-Run `bun run dev providers --models <provider-id>` to get models JSON. Use `AskUserQuestion` to show the top 3-4 models. If the models list is empty, ask user to type a model ID.
+Run `ghost providers --models <provider-id>` to get models JSON. Use `AskUserQuestion` to show the top 3-4 models. If the models list is empty, ask the user to type a model ID.
 
 ### Step C — Authentication
 
-Check the chosen provider's fields in the `bun run dev providers` JSON:
+Check the chosen provider's fields in the `ghost providers` JSON:
 
-- If `requiresApiKey: true` → ask user for their API key. Show the `apiKeyUrl` so they know where to get it.
-- If `supportsOAuth: true` (e.g., `anthropic`) → headless mode handles OAuth automatically. It prints a URL for the user to open in their browser. Tell the user they will see a login URL in the terminal output.
-- If `requiresApiKey: false` and `supportsOAuth: false` (e.g., `claude-cli`) → no auth needed, skip this step.
+- `requiresApiKey: true` → ask the user for their API key. Show the `apiKeyUrl` so they know where to get it.
+- `supportsOAuth: true` (e.g., `anthropic`) → headless mode handles OAuth automatically. It prints a URL for the user to open in their browser. Tell the user they will see a login URL in the terminal output.
+- `requiresApiKey: false` and `supportsOAuth: false` (e.g., `claude-cli`) → no auth needed; skip this step.
 
 ### Step D — Trading Mode
 
-Use `AskUserQuestion` to ask:
+Use `AskUserQuestion`:
 
-- **Paper trading** (Recommended) — "Simulated trading with 10,000 USDC. No real money."
-- **Live trading** — "Real trades on Hyperliquid. Requires funded wallet."
+- **Paper trading** (Recommended) — "Simulated trading with 10,000 USDC. No wallet needed."
+- **Live trading** — "Real trades on Hyperliquid. Requires a funded wallet."
 
-If user picks paper, add `--paper` to the onboard command. If they want a custom balance, ask for the amount and add `-b <amount>`.
+If the user picks paper, add `--paper` to the onboard command. For a custom balance, ask for the amount and add `-b <amount>`.
 
 ### Step E — Run Onboard
 
 **Headless onboard** (`--provider` + `--model` supplied) exits cleanly — it saves config, spawns the daemon as a detached background process, and returns. No need for `run_in_background`.
 
-**Interactive onboard** (no `--provider`/`--model`) starts the daemon in the foreground after config is saved. The process keeps running — use `run_in_background` if needed.
+**Interactive onboard** (no `--provider`/`--model`) starts the daemon in the foreground after config is saved. Use `run_in_background` if needed.
 
-**OAuth providers** (`supportsOAuth: true`): The command will open the browser for login, wait for auth to complete, then save config and start the daemon. Use a long timeout (300000ms / 5 minutes) to give the user time to authenticate.
+**OAuth providers** (`supportsOAuth: true`): The command opens the browser for login, waits for auth, then saves config and starts the daemon. Use a long timeout (300000ms / 5 minutes) so the user has time to authenticate.
 
 ```bash
-# OAuth provider (browser opens automatically for login)
-GHOST_API_KEY=<key> bun run dev onboard --provider anthropic --model claude-opus-4
+# OAuth provider (browser opens automatically)
+ghost onboard --provider anthropic --model claude-opus-4
 
 # API key provider
-GHOST_API_KEY=<key> bun run dev onboard --provider openai --model gpt-4o
+GHOST_API_KEY=<key> ghost onboard --provider openai --model gpt-4o
 
-# No-auth provider
-bun run dev onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
+# No-auth provider, paper mode with custom balance
+ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
+
+# Install the OS service so Ghost survives reboots
+ghost onboard --service
 ```
-
-In headless mode, the daemon starts as a detached background process and the command exits immediately. In interactive mode, the daemon runs in the foreground.
 
 ### Step F — Verify
 
-After onboard, run:
-
 ```bash
-bun run dev status        # Shows provider, model, gateway URL
-bun run dev doctor        # Tests config, DB, provider connectivity
+ghost status        # Shows provider, model, gateway URL
+ghost doctor        # Tests config, DB, provider connectivity
 ```
 
 ## Step 4: Start Using Ghost
 
-Ghost is now ready. The daemon is running (or was started in the background).
+Ghost is now ready. Tell the user:
 
-Access the web dashboard:
-- **URL:** http://localhost:15401
-- **Telegram:** Configure with `bun run dev channel setup telegram`
+- **Dashboard:** http://localhost:15401
+- **Telegram:** Configure with `ghost channel setup telegram`
 
 ---
 
 ## Discover Providers & Models
 
 ```bash
-bun run dev providers                          # JSON list of all providers
-bun run dev providers --models <provider-id>   # JSON list of models for a provider
+ghost providers                          # JSON list of all providers
+ghost providers --models <provider-id>   # JSON list of models for a provider
 ```
 
 ---
@@ -128,14 +138,14 @@ When both `--provider` and `--model` are supplied, the interactive wizard is ski
 
 ```bash
 # macOS / Linux
-bun run dev onboard --provider claude-cli --model claude-sonnet-4-6
-GHOST_API_KEY=sk-xxx bun run dev onboard --provider openai --model gpt-4o
-bun run dev onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
+ghost onboard --provider claude-cli --model claude-sonnet-4-6
+GHOST_API_KEY=sk-xxx ghost onboard --provider openai --model gpt-4o
+ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
 
 # Windows (PowerShell)
-bun run dev onboard --provider claude-cli --model claude-sonnet-4-6
-$env:GHOST_API_KEY="sk-xxx"; bun run dev onboard --provider openai --model gpt-4o
-bun run dev onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
+ghost onboard --provider claude-cli --model claude-sonnet-4-6
+$env:GHOST_API_KEY="sk-xxx"; ghost onboard --provider openai --model gpt-4o
+ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
 ```
 
 ## Security Note
@@ -147,4 +157,4 @@ remotely. See [docs/security/network-exposure.md](docs/security/network-exposure
 for tunnel recipes (Cloudflare, Tailscale, ngrok) and how to restrict to
 localhost-only.
 
-Without `--provider`/`--model`, `bun run dev onboard` runs the interactive wizard.
+Without `--provider`/`--model`, `ghost onboard` runs the interactive wizard.

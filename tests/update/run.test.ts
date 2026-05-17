@@ -61,7 +61,7 @@ describe("runUpdate", () => {
   test("runs bun install with correct args when update is available", async () => {
     const lines: string[] = [];
     const spawn = mock(async (args: { packageSpec: string; registry: string }) => {
-      expect(args.packageSpec).toBe("@hyperflow/ghost@0.0.2");
+      expect(args.packageSpec).toBe("@hyperflow.fun/ghost@0.0.2");
       expect(args.registry).toContain("registry.npmjs.org");
       return 0;
     });
@@ -171,7 +171,7 @@ describe("runUpdate", () => {
     const check = channelAwareVersionCheck({ latest: "0.0.3", rc: "0.0.4-rc.2" });
     const lines: string[] = [];
     const spawn = mock(async (args: { packageSpec: string }) => {
-      expect(args.packageSpec).toBe("@hyperflow/ghost@0.0.4-rc.2");
+      expect(args.packageSpec).toBe("@hyperflow.fun/ghost@0.0.4-rc.2");
       return 0;
     });
     const result = await runUpdate({

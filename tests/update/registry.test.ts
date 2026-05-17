@@ -11,7 +11,7 @@ describe("registry", () => {
   });
 
   test("PACKAGE_NAME is the scoped package name", () => {
-    expect(PACKAGE_NAME).toBe("@hyperflow/ghost");
+    expect(PACKAGE_NAME).toBe("@hyperflow.fun/ghost");
   });
 
   test("getRegistryUrl returns the default when env is unset", () => {

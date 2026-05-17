@@ -1,18 +1,44 @@
 # Update
 
-Ghost is in early access. There are no published packages — update by pulling the latest code from the repository.
+Ghost ships as the [`@hyperflow.fun/ghost`](https://www.npmjs.com/package/@hyperflow.fun/ghost) package on npm. Updates are in-place and preserve your config, wallets, chat history, memory, and skills under `~/.ghost/`.
 
 ## Update Procedure
 
 ```bash
-git pull
-bun install
+ghost update
 ```
 
-This updates your local clone and dependencies to the latest development version. Your config, wallets, chat history, memory, and skills in `~/.ghost/` are never touched.
+This checks the npm registry for a newer version on your current channel (default `latest`) and reinstalls in place.
 
-## VersionCheckService (Dormant)
+Switch channels with the `--channel` flag:
 
-The in-repo VersionCheckService (`src/update/version-check.ts`) exists but is dormant until a registry is created. The service is wired but has no effect on dev-clone installs.
+```bash
+ghost update --channel=rc      # Release candidates
+ghost update --channel=latest  # Back to stable
+```
 
-When Ghost ships with a published registry, version checking will resume. See code comments in `src/update/` for architecture.
+If `ghost update` fails (e.g. the binary is broken), reinstall manually:
+
+```bash
+npm install -g @hyperflow.fun/ghost@latest
+```
+
+## Version Check Service
+
+The in-process `VersionCheckService` (`src/update/version-check.ts`) polls the npm registry on a 1-hour TTL and surfaces an update hint in the CLI. It honors:
+
+- `GHOST_REGISTRY` — override the registry URL (useful for an internal mirror or test fixtures)
+- `GHOST_UPDATE_CHECK_TTL_MS` — TTL in ms (default 3,600,000)
+- `GHOST_UPDATE_CHECK_NULL_RETRY_MS` — short retry window after a failed fetch (default 60,000), so offline boots recover quickly once the network returns
+
+Failures (network down, non-200, malformed body) cache `null` for the short retry window and never throw.
+
+## What Update Touches
+
+| Path | Action |
+|------|--------|
+| `~/.bun/install/global/node_modules/@hyperflow.fun/ghost` | Replaced |
+| `~/.ghost/` | **Untouched** — your data is safe |
+| OS service definition | Refreshed if it points at a now-stale binary path |
+
+If you ran `ghost onboard --service` (or selected "Yes" at the install prompt), the OS service stays registered across updates. Restart it explicitly only if a release notes that change is required.

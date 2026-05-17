@@ -6,15 +6,15 @@ Quick reference for common Ghost issues, diagnostics, and solutions.
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| Daemon won't start | Config missing or invalid | Run `bun run dev onboard` to generate config |
+| Daemon won't start | Config missing or invalid | Run `ghost onboard` to generate config |
 | Daemon won't start | Port 15401 already in use | Kill the process or change `gateway.host:port` in config |
-| Daemon starts but exits | Provider unreachable | Check API key / network; run `bun run dev doctor` |
+| Daemon starts but exits | Provider unreachable | Check API key / network; run `ghost doctor` |
 | "Wallet not connected" | Hyperliquid client not ready | Wait 10s; if persists, check Hyperliquid API is live |
 | OAuth callback fails | Browser won't open or wrong URL | Check `gateway.host` matches your network; ensure loopback or external auth enabled |
-| Paper balance resets on restart | Paper state not persisted | DB file deleted; restart with `bun run dev daemon --paper -b <amount>` to reinit |
+| Paper balance resets on restart | Paper state not persisted | DB file deleted; restart with `ghost daemon --paper -b <amount>` to reinit |
 | Observer silent (no alerts) | Observer disabled or REST lag | Check `observer.enabled: true`; verify `syncIntervalMs` is ≤ 60s |
 | Observer too noisy | Liquidation threshold too low | Increase `liquidationProgressThreshold` to 0.9; increase `tickMs` to 10000 |
-| Skill not loaded | Skill file missing or disabled | Check `bun run dev skills list`; enable via web |
+| Skill not loaded | Skill file missing or disabled | Check `ghost skills list`; enable via web |
 | Memory consolidation never fires | Session token budget not exceeded | Normal behavior for light users; consolidation only runs when budget fills |
 | Telegram pairing stuck | Challenge code expired (60 min) | User requests a new challenge via `/start` |
 | "Wrong code" on pairing | Code doesn't match pending request | Verify 8-char code is exactly right; try `/start` again |
@@ -27,7 +27,7 @@ Quick reference for common Ghost issues, diagnostics, and solutions.
 
 ## Diagnostics
 
-### `bun run dev status`
+### `ghost status`
 
 Displays config snapshot without sensitive data:
 
@@ -40,7 +40,7 @@ Autonomy:        observer
 
 Shows: provider, selected model, gateway URL, autonomy level.
 
-### `bun run dev doctor`
+### `ghost doctor`
 
 Full health check (runs automatically on daemon start):
 
@@ -57,9 +57,9 @@ Checks: config validity, DB integrity, provider auth, live wallet connection.
 
 | Flag | Behavior |
 |------|----------|
-| `bun run dev daemon -v` | Debug level; tool calls, context builder steps logged |
-| `bun run dev daemon -vv` | Trace level; detailed state transitions, all internal ops |
-| `LOG_LEVEL=warn bun run dev daemon` | Override to warn+ only (suppress debug/trace) |
+| `ghost daemon -v` | Debug level; tool calls, context builder steps logged |
+| `ghost daemon -vv` | Trace level; detailed state transitions, all internal ops |
+| `LOG_LEVEL=warn ghost daemon` | Override to warn+ only (suppress debug/trace) |
 
 **Log Location:** `~/.ghost/logs/` (pino JSON format)
 
@@ -111,7 +111,7 @@ For public binding, see [Security: Network Exposure](./security/network-exposure
 
 - **Auth:** API key required.
 - **Issue:** "Rate limited" → OpenRouter enforces per-model and global RPM limits. Reduce request volume or upgrade tier.
-- **Model selection:** OpenRouter supports 100+ models; use `bun run dev providers --models openrouter` to list.
+- **Model selection:** OpenRouter supports 100+ models; use `ghost providers --models openrouter` to list.
 
 ### Google Gemini
 
@@ -128,7 +128,7 @@ For public binding, see [Security: Network Exposure](./security/network-exposure
 ### Custom Models (Ollama / vLLM / LM Studio)
 
 - **Setup:** Run Ollama, vLLM, or LM Studio locally and note the base URL.
-- **Config:** Run `bun run dev onboard`, select Custom, enter base URL.
+- **Config:** Run `ghost onboard`, select Custom, enter base URL.
 - **File:** Settings written to `~/.ghost/models.json`.
 - **Authoritative source:** See [docs/providers/CUSTOM_MODELS.md](./providers/CUSTOM_MODELS.md) for full schema and examples.
 - **Issue:** "Connection refused" → Verify endpoint is running and accessible at the URL you configured.
@@ -140,7 +140,7 @@ For public binding, see [Security: Network Exposure](./security/network-exposure
 ```bash
 # Stop any running daemon (Ctrl+C if running in foreground)
 rm -rf ~/.ghost/
-bun run dev onboard    # Start fresh
+ghost onboard    # Start fresh
 ```
 
 ### Preserve Config, Reset Data
@@ -148,7 +148,7 @@ bun run dev onboard    # Start fresh
 ```bash
 # Stop any running daemon (Ctrl+C if running in foreground)
 rm -rf ~/.ghost/db ~/.ghost/workspace/
-bun run dev daemon --paper    # Restarts with new DB and empty memory
+ghost daemon --paper    # Restarts with new DB and empty memory
 ```
 
 ### Export Chat History

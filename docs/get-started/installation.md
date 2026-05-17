@@ -1,75 +1,83 @@
 # Installation
 
-Ghost is in early access. There is no published package or installer script — install by cloning the repository.
+Install Ghost as a global Bun package, run the setup wizard, open the dashboard.
 
 ## Prerequisites
 
-- **Bun** >= 1.0 — Install at https://bun.sh (run `curl -fsSL https://bun.sh/install | bash`)
-- **Claude Code CLI** (optional) — Only needed if using the `claude-cli` provider; install via `npm install -g @anthropic-ai/claude-code`
+- **[Node.js](https://nodejs.org) + npm** — for installing the package
+- **[Bun](https://bun.sh) >= 1.1** — Ghost runs as a Bun script at runtime
+  ```bash
+  # macOS / Linux
+  curl -fsSL https://bun.sh/install | bash
+  # Windows (PowerShell)
+  powershell -c "irm bun.sh/install.ps1 | iex"
+  ```
+- **Claude Code CLI** (optional) — only if using the `claude-cli` provider: `npm install -g @anthropic-ai/claude-code`
 
 ## Install
 
 ```bash
-git clone https://github.com/hyperflowdotfun/ghost.git
-cd ghost
-bun install
-cd web && bun install && cd ..
+npm install -g @hyperflow.fun/ghost
 ```
+
+Verify:
+
+```bash
+ghost --version
+```
+
+If `ghost` isn't found, restart your terminal so npm's global `bin` directory is picked up on PATH.
 
 ## Onboard (Setup Wizard)
 
-Run the onboard wizard to configure your LLM provider, model, and trading mode:
+Run the wizard to configure your LLM provider, model, and trading mode:
 
 ```bash
-bun run dev onboard
+ghost onboard
 ```
 
-You'll be asked to pick:
-1. **LLM Provider** — Claude Code (recommended, no API key), Anthropic, OpenAI, Google Gemini, or OpenRouter
-2. **Model** — The specific model to use
-3. **Trading Mode** — Paper (simulated, $10k USDC) or Live (real money on Hyperliquid)
+You'll pick:
+
+1. **Trading Mode** — Paper (simulated, $10k USDC) or Live (real money on Hyperliquid)
+2. **LLM Provider** — Claude Code (recommended, no API key), Anthropic, OpenAI, Google Gemini, or OpenRouter
+3. **Model** — The specific model to use
+4. **Install Ghost service** — Select **Yes** to run Ghost in the background after reboot
 
 ### Paper Trading
 
-To start with paper trading instead of live:
+To start with paper trading directly:
 
 ```bash
-bun run dev onboard --paper              # $10,000 USDC simulated
-bun run dev onboard --paper -b 50000     # Custom balance
+ghost onboard --paper              # $10,000 USDC simulated
+ghost onboard --paper -b 50000     # Custom balance
 ```
 
-### Headless Setup (For Scripts/CI)
+### Headless Setup (For Scripts / CI)
 
 Supply provider and model upfront to skip interactive prompts:
 
 ```bash
-GHOST_API_KEY=<key> bun run dev onboard --provider openai --model gpt-4o --paper
+GHOST_API_KEY=<key> ghost onboard --provider openai --model gpt-4o --paper
 ```
 
-## Start Ghost
+## Open the Dashboard
 
-After onboarding, start the daemon:
+If you said "Yes" to installing the service during onboard, Ghost is already running. Visit:
 
-```bash
-bun run dev                # Build web + start gateway (port 15401)
-```
+**http://localhost:15401**
 
-**Access the dashboard:** http://localhost:15401
-
-Press `Ctrl+C` to stop.
-
-### Paper Trading Mode
+If you didn't install the service, start the daemon manually:
 
 ```bash
-bun run dev daemon --paper              # Paper trading, $10k default
-bun run dev daemon --paper -b 100000    # Paper with custom balance
+ghost daemon            # Foreground (Ctrl+C to stop)
+ghost daemon --paper    # Paper mode
 ```
 
 ## Verify Setup
 
 ```bash
-bun run dev status    # Show provider, model, gateway URL
-bun run dev doctor    # Full diagnostic (config, DB, provider)
+ghost status     # Provider, model, gateway URL
+ghost doctor     # Full diagnostic (config, DB, provider)
 ```
 
 ## Data Storage
@@ -88,35 +96,27 @@ Your data never leaves your machine.
 
 ## Update
 
-Update by pulling the latest code:
-
 ```bash
-git pull
-bun install
+ghost update                  # Check registry + reinstall in place
+ghost update --channel=rc     # Switch to release-candidate channel
 ```
 
-Since Ghost is in early access, there are no published packages. The VersionCheckService is dormant until a registry exists.
+Or reinstall manually:
+
+```bash
+npm install -g @hyperflow.fun/ghost@latest
+```
+
+Your `~/.ghost/` data is preserved across updates.
 
 ## Uninstall
 
-Delete the repository and your data:
-
 ```bash
-# Delete the clone
-rm -rf ghost
-
-# Delete all Ghost data (optional)
-rm -rf ~/.ghost
+ghost uninstall                       # Stop service + remove ~/.ghost (interactive)
+npm uninstall -g @hyperflow.fun/ghost    # Remove the binary
 ```
 
-On Windows (PowerShell):
-```powershell
-# Delete the clone
-Remove-Item -Recurse -Force ghost
-
-# Delete all Ghost data (optional)
-Remove-Item -Recurse -Force ~\.ghost
-```
+`ghost uninstall` prints the second command at the end so you don't need to remember it.
 
 ---
 

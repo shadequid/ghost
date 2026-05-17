@@ -123,9 +123,9 @@ function deterministicGhostCloid(orderId: string): string {
 
 ### Reset Paper State
 
-1. Stop daemon: `bun run dev daemon stop`
+1. Stop daemon: `ghost daemon stop`
 2. Delete the paper DB: `rm ~/.ghost/workspace/paper-trading.db`
-3. Restart: `bun run dev daemon --paper -b 50000` (or your desired balance)
+3. Restart: `ghost daemon --paper -b 50000` (or your desired balance)
 
 ### Replay from History
 

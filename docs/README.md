@@ -17,16 +17,15 @@ Ghost walks beside you. It sees your positions, understands your emotions, and i
 
 ## 5-Minute Quickstart
 
-Ghost is in early access. Install by cloning the repo:
+Requires [Bun](https://bun.sh) >= 1.1.
 
 ```bash
-git clone https://github.com/hyperflowdotfun/ghost.git
-cd ghost
-bun install
-cd web && bun install && cd ..
-bun run dev onboard       # One-time setup: pick provider, model, trading mode
-bun run dev               # Start gateway + channels (port 15401)
+npm install -g @hyperflow.fun/ghost     # Install
+ghost onboard                           # One-time setup: pick mode, LLM, install service
+# → say "Yes" to install the service; Ghost starts in the background
 ```
+
+Open the dashboard at **http://localhost:15401**.
 
 In Telegram or web UI, ask Ghost: "What are my current positions? Any risks?"
 

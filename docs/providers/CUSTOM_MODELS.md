@@ -28,7 +28,7 @@ Then in `~/.ghost/config.json`:
 { "provider": "ollama", "model": "qwen3:8b" }
 ```
 
-Verify: `bun run dev doctor` lists the provider and `bun run dev providers --models ollama` shows the models.
+Verify: `ghost doctor` lists the provider and `ghost providers --models ollama` shows the models.
 
 ## vLLM / Self-Hosted
 
@@ -145,7 +145,7 @@ Before reporting a tool-calling bug, confirm:
 ollama show <model> --template | grep -i "tool\|function"
 
 # 2. Thinking must be OFF (verified by sampled request logs)
-bun run dev daemon -v 2>&1 | grep -i "enable_thinking\|chat_template_kwargs"
+ghost daemon -v 2>&1 | grep -i "enable_thinking\|chat_template_kwargs"
 ```
 
 If the template lacks a `Tools` clause, re-pull (`ollama rm <model> && ollama pull <model>`) or pick a Modelfile with tool support.
@@ -160,7 +160,7 @@ For custom providers, the `apiKey` in `models.json` is returned directly — no 
 
 ## Using the Wizard
 
-`bun run dev onboard` → pick **Custom** → wizard asks for:
+`ghost onboard` → pick **Custom** → wizard asks for:
 
 1. Provider name (default `ollama`)
 2. Base URL (default `http://localhost:11434/v1`)
@@ -173,13 +173,13 @@ The wizard writes the entry to `~/.ghost/models.json`, merging with any existing
 
 | Symptom | Check |
 |---------|-------|
-| `Unknown model: <provider>/<model>` at daemon boot | Run `bun run dev doctor` — it lists what's in models.json and surfaces load errors. |
+| `Unknown model: <provider>/<model>` at daemon boot | Run `ghost doctor` — it lists what's in models.json and surfaces load errors. |
 | `schema validation failed` in doctor | Compare against this page's quick-start example; all required fields present? |
 | Requests 400 against Ollama | Make sure `compat.supportsDeveloperRole = false` (auto-applied on localhost:11434). |
-| Qwen responses contain `<think>` blocks | Confirm `ollama show <model> --template` supports tools; ensure your Ghost config doesn't override `config.agent.thinkingLevel` for the model. Ghost auto-forces thinking off for Qwen-on-Ollama (see the Qwen auto-detect section above). Verify with `bun run dev daemon -v 2>&1 \| grep enable_thinking` — should log `false`. |
+| Qwen responses contain `<think>` blocks | Confirm `ollama show <model> --template` supports tools; ensure your Ghost config doesn't override `config.agent.thinkingLevel` for the model. Ghost auto-forces thinking off for Qwen-on-Ollama (see the Qwen auto-detect section above). Verify with `ghost daemon -v 2>&1 \| grep enable_thinking` — should log `false`. |
 | Tool calls fail or are skipped on local Qwen/Llama | Confirm model template includes a Tools clause: `ollama show <model> --template \| grep -i "tool\|function"`. Re-pull a tool-capable Modelfile if missing. See the tool-call accuracy table above. |
 | Want to use a proxy in front of a real provider | Reserved names can't be shadowed yet — wrap with a distinct name (e.g. `openai-proxy`) and point `config.provider` at that. |
 
 ## Migrating from `config.apiUrl`
 
-The legacy `config.apiUrl` field is deprecated. It's still readable for back-compat (Ghost emits a warning if set), but new installs use `models.json`. To migrate: run `bun run dev onboard` and pick Custom — it writes the new file and leaves your old `apiUrl` in place until you remove it.
+The legacy `config.apiUrl` field is deprecated. It's still readable for back-compat (Ghost emits a warning if set), but new installs use `models.json`. To migrate: run `ghost onboard` and pick Custom — it writes the new file and leaves your old `apiUrl` in place until you remove it.

@@ -1,5 +1,5 @@
 {
-  "name": "@hyperflow/ghost",
+  "name": "@hyperflow.fun/ghost",
   "version": "0.0.1",
   "description": "AI trading companion for Hyperliquid perpetuals",
   "type": "module",

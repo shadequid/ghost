@@ -50,7 +50,7 @@ No authentication. Configure the base URL (e.g., `http://localhost:11434/v1`) in
 To change your provider or model at any time:
 
 ```bash
-bun run dev onboard
+ghost onboard
 ```
 
 Select a new provider and model. Your existing chat history, memory, positions, and settings are preserved. Ghost starts using the new LLM immediately.
@@ -67,4 +67,4 @@ For complete setup steps for each provider, OAuth login, and self-hosted options
 - **Want full privacy?** → Ollama (local, free, offline)
 - **Want everything at once?** → OpenRouter (200+ models, 1 key)
 
-Run `bun run dev providers` to see all available options and current status. Run `bun run dev doctor` to test your current provider's connectivity.
+Run `ghost providers` to see all available options and current status. Run `ghost doctor` to test your current provider's connectivity.

@@ -115,7 +115,7 @@ describe("runUninstall", () => {
     expect(h.rmCalls).toEqual(["/tmp/fake-ghost"]);
     expect(h.exits).toEqual([]);
     // Misleading hand-off hint is gone — bun package removal is automatic now.
-    expect(h.logs.some((m) => m.includes("bun remove -g @hyperflow/ghost"))).toBe(false);
+    expect(h.logs.some((m) => m.includes("bun remove -g @hyperflow.fun/ghost"))).toBe(false);
     // Completion message must be printed.
     expect(h.logs.some((m) => m.includes("✓ Ghost fully uninstalled") || m.includes("bun is kept"))).toBe(true);
   });
@@ -138,7 +138,7 @@ describe("runUninstall", () => {
     // Data dir skipped since it doesn't exist.
     // removeBunPackage still runs (empty stdout → not found → ok:true → anyProgress=true).
     // Misleading hand-off hint is gone.
-    expect(h.logs.some((m) => m.includes("bun remove -g @hyperflow/ghost"))).toBe(false);
+    expect(h.logs.some((m) => m.includes("bun remove -g @hyperflow.fun/ghost"))).toBe(false);
     // Completion path reached (no failures).
     expect(h.logs.some((m) => m.includes("bun is kept"))).toBe(true);
   });
@@ -379,7 +379,7 @@ describe("removeBunPackage", () => {
         stderr: "",
       },
     });
-    const result = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn });
+    const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(true);
     expect(result.info).toMatch(/not found in bun global registry/);
   });
@@ -390,17 +390,17 @@ describe("removeBunPackage", () => {
       const key = `${cmd} ${args.join(" ")}`;
       calls.push(key);
       if (key === "bun pm ls -g") {
-        return { exitCode: 0, stdout: "├── @hyperflow/ghost@0.0.2-rc.3\n", stderr: "" };
+        return { exitCode: 0, stdout: "├── @hyperflow.fun/ghost@0.0.2-rc.3\n", stderr: "" };
       }
-      if (key === "bun remove -g @hyperflow/ghost") {
-        return { exitCode: 0, stdout: "removed @hyperflow/ghost\n", stderr: "" };
+      if (key === "bun remove -g @hyperflow.fun/ghost") {
+        return { exitCode: 0, stdout: "removed @hyperflow.fun/ghost\n", stderr: "" };
       }
       throw new Error(`unexpected: ${key}`);
     };
-    const result = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn });
+    const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(true);
-    expect(result.info).toMatch(/Removed @hyperflow\/ghost/);
-    expect(calls).toContain("bun remove -g @hyperflow/ghost");
+    expect(result.info).toMatch(/Removed @hyperflowdotfun\/ghost/);
+    expect(calls).toContain("bun remove -g @hyperflow.fun/ghost");
   });
 
   it("reports failure when bun pm ls exits non-zero (broken bun)", async () => {
@@ -411,7 +411,7 @@ describe("removeBunPackage", () => {
         stderr: "error: manifest corrupt",
       },
     });
-    const result = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn });
+    const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(false);
     expect(result.info).toMatch(/bun pm ls -g failed/);
   });
@@ -427,7 +427,7 @@ describe("removeBunPackage", () => {
         stderr: "error: Lockfile not found",
       },
     });
-    const result = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn });
+    const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(true);
     expect(result.info).toMatch(/not found in bun global registry/);
   });
@@ -435,10 +435,10 @@ describe("removeBunPackage", () => {
   it("reports failure when bun remove -g fails", async () => {
     const spawn: UninstallDeps["spawn"] = (cmd, args) => {
       const key = `${cmd} ${args.join(" ")}`;
-      if (key === "bun pm ls -g") return { exitCode: 0, stdout: "├── @hyperflow/ghost@0.0.1\n", stderr: "" };
+      if (key === "bun pm ls -g") return { exitCode: 0, stdout: "├── @hyperflow.fun/ghost@0.0.1\n", stderr: "" };
       return { exitCode: 1, stdout: "", stderr: "permission denied" };
     };
-    const result = await removeBunPackage({ packageName: "@hyperflow/ghost", spawn });
+    const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(false);
     expect(result.info).toMatch(/bun remove -g .* failed/);
   });
@@ -619,7 +619,7 @@ describe("runUninstall — integration", () => {
   it("runs full cleanup pipeline in correct order when everything is installed", async () => {
     const calls: string[] = [];
     const rcContent = `# GHOST-BEGIN\nexport PATH="/home/testuser/.bun/bin:$PATH"\n# GHOST-END\n`;
-    const npmrcContent = `# GHOST-NPMRC-BEGIN\n@hyperflow:registry=https://example.com/\n# GHOST-NPMRC-END\n`;
+    const npmrcContent = `# GHOST-NPMRC-BEGIN\n@hyperflowdotfun:registry=https://example.com/\n# GHOST-NPMRC-END\n`;
     const fileTable: Record<string, string> = {
       "/home/testuser/.bashrc": rcContent,
       "/home/testuser/.npmrc": npmrcContent,
@@ -641,7 +641,7 @@ describe("runUninstall — integration", () => {
       spawn: (cmd, args) => {
         calls.push(`spawn ${cmd} ${args.join(" ")}`);
         if (cmd === "ps") return { exitCode: 0, stdout: "", stderr: "" };
-        if (cmd === "bun" && args[0] === "pm") return { exitCode: 0, stdout: "├── @hyperflow/ghost@0.0.2-rc.3\n", stderr: "" };
+        if (cmd === "bun" && args[0] === "pm") return { exitCode: 0, stdout: "├── @hyperflow.fun/ghost@0.0.2-rc.3\n", stderr: "" };
         if (cmd === "bun" && args[0] === "remove") return { exitCode: 0, stdout: "", stderr: "" };
         return { exitCode: 0, stdout: "", stderr: "" };
       },

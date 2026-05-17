@@ -5,8 +5,8 @@ Kick the tires risk-free. Paper mode simulates real market fills without risking
 ## Start paper trading
 
 ```bash
-bun run dev daemon --paper              # $10,000 USDC default
-bun run dev daemon --paper -b 50000     # $50,000 USDC custom balance
+ghost daemon --paper              # $10,000 USDC default
+ghost daemon --paper -b 50000     # $50,000 USDC custom balance
 ```
 
 Stop with `Ctrl+C`.
@@ -33,35 +33,25 @@ You're trading with real market data but zeroed-risk capital.
 
 ## Reset paper balance
 
-Paper balance is stored in memory. To reset:
+Paper balance is stored in your session file. To reset:
 
 ```bash
-# Stop the daemon
-bun run dev daemon stop
-
-# Remove the session file
-rm -f ~/.ghost/session-paper.jsonl
-
-# Restart
-bun run dev daemon --paper
+ghost daemon stop                      # Stop the service
+rm -f ~/.ghost/session-paper.jsonl     # Remove the session file
+ghost daemon --paper                   # Restart
 ```
 
 ## Move to live
 
-When you're confident:
+Ghost does not currently support switching modes in place. To move from paper to live, uninstall and reinstall:
 
 ```bash
-# Stop paper daemon
-bun run dev daemon stop
-
-# Onboard with live trading
-bun run dev onboard
-
-# Start with real money
-bun run dev daemon
+ghost uninstall                            # Remove service + data
+npm install -g @hyperflow.fun/ghost        # Reinstall
+ghost onboard                              # Pick "Live trading" this time
 ```
 
-On first live trade, Ghost will ask you to connect your Hyperliquid wallet (via read-only address + trading key, or wallet integration). After that, all trades hit real exchange.
+On first live trade, Ghost will ask you to connect your Hyperliquid wallet. After that, all trades hit the real exchange.
 
 **Paper → Live checklist:**
 - [ ] 20+ paper trades completed, broke even or better
