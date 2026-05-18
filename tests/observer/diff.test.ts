@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { diffSnapshot, liquidationProgress } from "../../src/observer/diff.js";
 import {
   filterPnlSnapshots,
-  MIN_PNL_PCT_DELTA,
   MIN_PRICE_PCT_DELTA,
   MIN_COOLDOWN_MS,
 } from "../../src/observer/loop.js";
@@ -740,8 +739,9 @@ describe("diffSnapshot — price_alert (crossing detection)", () => {
 describe("filterPnlSnapshots — per-position pnl rate-limit", () => {
   // The detector emits pnl_snapshot every tick. This filter sits between
   // diff and judge to drop near-identical PnL updates on the same
-  // position. Test the four threshold branches: pass-through (no prior
-  // fire), drop (all-below), pass (any-above), and per-axis pass.
+  // position. Two-axis floor (BUG-0146): price-pct + time. Drop iff BOTH
+  // below threshold vs the last fire. Margin-pct gate was removed because
+  // it scaled with leverage rather than market move.
 
   const NOW = 1_700_000_000_000;
 
@@ -777,22 +777,22 @@ describe("filterPnlSnapshots — per-position pnl rate-limit", () => {
     expect(filterPnlSnapshots([pnlEvent()], {}, NOW).length).toBe(1);
   });
 
-  test("all three deltas under thresholds → pnl_snapshot dropped", () => {
+  test("both deltas under thresholds → pnl_snapshot dropped", () => {
     const positions: Record<string, PositionSnapshot> = {
       "BTC|long": priorPos({
         lastFiredPnl: 50,
         lastFiredPnlPct: 7,
         lastFiredMarkPrice: 70_500,
-        // Last fired 10 min ago (< 30 min cooldown).
+        // Last fired 10 min ago (< 60 min cooldown).
         lastFiredAtMs: NOW - 10 * 60 * 1000,
       }),
     };
-    // Current PnL very close: +0.5pct delta, mark moved 0.07%.
+    // Mark moved 0.07% (< 0.5%) — only "noise" tick.
     const ev = pnlEvent({ unrealizedPnl: 53, unrealizedPnlPct: 7.5, markPrice: 70_550 });
     expect(filterPnlSnapshots([ev], positions, NOW)).toEqual([]);
   });
 
-  test("Δpnl% exceeds threshold (price + cooldown under) → passes through", () => {
+  test("Δprice% exceeds threshold (cooldown under) → passes through", () => {
     const positions: Record<string, PositionSnapshot> = {
       "BTC|long": priorPos({
         lastFiredPnl: 50,
@@ -801,26 +801,12 @@ describe("filterPnlSnapshots — per-position pnl rate-limit", () => {
         lastFiredAtMs: NOW - 10 * 60 * 1000,
       }),
     };
-    // Δpnl% = 6 > MIN_PNL_PCT_DELTA(5); Δprice% tiny; cooldown not elapsed.
-    const ev = pnlEvent({ unrealizedPnl: 90, unrealizedPnlPct: 13, markPrice: 70_550 });
-    expect(filterPnlSnapshots([ev], positions, NOW).length).toBe(1);
-  });
-
-  test("Δprice% exceeds threshold (pnl + cooldown under) → passes through", () => {
-    const positions: Record<string, PositionSnapshot> = {
-      "BTC|long": priorPos({
-        lastFiredPnl: 50,
-        lastFiredPnlPct: 7,
-        lastFiredMarkPrice: 70_500,
-        lastFiredAtMs: NOW - 10 * 60 * 1000,
-      }),
-    };
-    // Δprice% = ~1% > MIN_PRICE_PCT_DELTA(0.5); Δpnl% small; cooldown not elapsed.
+    // Δprice% = ~1.1% > MIN_PRICE_PCT_DELTA(0.5); cooldown not elapsed.
     const ev = pnlEvent({ unrealizedPnl: 53, unrealizedPnlPct: 7.5, markPrice: 71_300 });
     expect(filterPnlSnapshots([ev], positions, NOW).length).toBe(1);
   });
 
-  test("cooldown elapsed (pnl + price under) → passes through", () => {
+  test("cooldown elapsed (price under) → passes through", () => {
     const positions: Record<string, PositionSnapshot> = {
       "BTC|long": priorPos({
         lastFiredPnl: 50,
@@ -832,6 +818,24 @@ describe("filterPnlSnapshots — per-position pnl rate-limit", () => {
     };
     const ev = pnlEvent({ unrealizedPnl: 53, unrealizedPnlPct: 7.5, markPrice: 70_550 });
     expect(filterPnlSnapshots([ev], positions, NOW).length).toBe(1);
+  });
+
+  test("leverage-invariant: high margin-pct delta alone does NOT pass (BUG-0146)", () => {
+    // Pre-BUG-0146 this would pass via the (now-removed) margin-pct gate.
+    // Now: same Δprice% and elapsed below floors → drop, regardless of
+    // unrealizedPnlPct. Proves price-pct + time only.
+    const positions: Record<string, PositionSnapshot> = {
+      "BTC|long": priorPos({
+        lastFiredPnl: 50,
+        lastFiredPnlPct: 7,
+        lastFiredMarkPrice: 70_500,
+        lastFiredAtMs: NOW - 10 * 60 * 1000,
+      }),
+    };
+    // Δprice% tiny (0.07%), elapsed 10min, but unrealizedPnlPct jumped to 30
+    // (e.g. due to leverage math). Should still be dropped.
+    const ev = pnlEvent({ unrealizedPnl: 200, unrealizedPnlPct: 30, markPrice: 70_550 });
+    expect(filterPnlSnapshots([ev], positions, NOW)).toEqual([]);
   });
 
   test("non-pnl_snapshot events are untouched regardless of position state", () => {
@@ -865,7 +869,6 @@ describe("filterPnlSnapshots — per-position pnl rate-limit", () => {
   });
 
   test("constants match spec defaults", () => {
-    expect(MIN_PNL_PCT_DELTA).toBe(5);
     expect(MIN_PRICE_PCT_DELTA).toBe(0.5);
     expect(MIN_COOLDOWN_MS).toBe(60 * 60 * 1000);
   });

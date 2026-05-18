@@ -61,27 +61,21 @@ import type { Message } from "@mariozechner/pi-ai";
 const RECENT_CHAT_MAX = 20;
 
 /**
- * Per-position `pnl_snapshot` rate-limit thresholds. The judge skill
- * already lists a 60-min non-urgent cooldown, but the LLM is not durable
- * across ticks — live evidence showed two PnL chats 33 min apart with
- * Δprice ≈ 0.3% and Δpnl ≈ -$1.2. These constants enforce the floor in
- * code: a `pnl_snapshot` is filtered out of the events array sent to the
- * judge unless at least ONE of the three thresholds below is exceeded.
+ * Per-position `pnl_snapshot` rate-limit thresholds. Code-side floor that
+ * prevents waking the LLM judge on every tick of a position whose state
+ * hasn't meaningfully moved. The judge skill makes the actual fire/silent
+ * decision; this is just a cheap wake-up gate.
  *
- * Tuning notes:
- *   - `MIN_PNL_PCT_DELTA = 5` (pct of margin). Picked over USD-delta so the
- *     gate scales with position size — a $1 swing on a 1k margin is noise
- *     but on a 10 USDC margin is +10%.
- *   - `MIN_PRICE_PCT_DELTA = 0.5` (pct of mark price). Tight enough that
- *     real breakouts pass; loose enough that the 5s eval cadence doesn't
- *     wake the judge on every tick.
+ *   - `MIN_PRICE_PCT_DELTA = 0.5` (pct of mark price). Leverage-invariant —
+ *     measures the only thing that should re-wake a position-status thought.
  *   - `MIN_COOLDOWN_MS = 60 min`. Matches the event-judge skill's
- *     non-urgent cooldown rule so the code floor and the LLM judge agree on
- *     a single source of truth. The original 30-min floor let the literal
- *     bug evidence (33-min gap, 0.3% price move, $1.2 PnL drift) slip the
- *     code-side gate, leaving only the non-durable skill rule to catch it.
+ *     non-urgent cooldown rule so the code floor and the LLM judge agree
+ *     on a single source of truth.
+ *
+ * The margin-pct gate from BUG-0143 was removed (see BUG-0146): 5% on
+ * margin = 1% price at 5x but 0.25% price at 20x — same constant gates
+ * very different market moves. Price-pct + time alone is leverage-clean.
  */
-export const MIN_PNL_PCT_DELTA = 5;
 export const MIN_PRICE_PCT_DELTA = 0.5;
 export const MIN_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -89,14 +83,13 @@ export const MIN_COOLDOWN_MS = 60 * 60 * 1000;
  * Filter `pnl_snapshot` events against per-position last-fired thresholds.
  *
  * For each pnl_snapshot in `events`:
- *   - If the corresponding `priorPositions[key]` has no `lastFired*` quad
+ *   - If the corresponding `priorPositions[key]` has no `lastFired*` triple
  *     (any field null) → keep (first fire is unconstrained).
- *   - Else drop iff ALL of these hold vs the prior fire:
- *       |Δpnl%| < MIN_PNL_PCT_DELTA
+ *   - Else drop iff BOTH of these hold vs the prior fire:
  *       |Δprice%| < MIN_PRICE_PCT_DELTA
  *       (nowMs - lastFiredAtMs) < MIN_COOLDOWN_MS
- *   - Any single threshold exceeded → keep (the snapshot reflects a
- *     meaningful change).
+ *   - Either threshold exceeded → keep (the snapshot reflects a meaningful
+ *     change worth letting the judge see).
  *
  * Non-pnl_snapshot events pass through untouched. Pure helper — exported
  * for unit-test coverage.
@@ -111,50 +104,37 @@ export function filterPnlSnapshots(
     const key = `${ev.symbol.toUpperCase()}|${ev.side}`;
     const prior = priorPositions[key];
     if (!prior) return true;
-    const {
-      lastFiredPnlPct,
-      lastFiredMarkPrice,
-      lastFiredAtMs,
-    } = prior;
+    const { lastFiredMarkPrice, lastFiredAtMs } = prior;
     if (
-      lastFiredPnlPct === null ||
       lastFiredMarkPrice === null ||
       lastFiredAtMs === null ||
       lastFiredMarkPrice === 0
     ) {
       return true; // never fired before — pass through.
     }
-    const pnlPctDelta = Math.abs(ev.unrealizedPnlPct - lastFiredPnlPct);
     const pricePctDelta = Math.abs(
       ((ev.markPrice - lastFiredMarkPrice) / lastFiredMarkPrice) * 100,
     );
     const elapsedMs = nowMs - lastFiredAtMs;
-    const allBelow =
-      pnlPctDelta < MIN_PNL_PCT_DELTA &&
-      pricePctDelta < MIN_PRICE_PCT_DELTA &&
-      elapsedMs < MIN_COOLDOWN_MS;
-    return !allBelow;
+    const bothBelow =
+      pricePctDelta < MIN_PRICE_PCT_DELTA && elapsedMs < MIN_COOLDOWN_MS;
+    return !bothBelow;
   });
 }
 
 /**
- * Decide whether the diff result warrants spending an LLM call. The filter
- * is intentionally simple: any structural change in positions, orders,
- * fills, or fired price alerts passes; a bag of `pnl_snapshot` only does
- * not. pnl_snapshot becomes useful CONTEXT for the LLM once another event
- * opens the gate, but it never opens the gate on its own.
+ * Decide whether the diff result warrants spending an LLM call. Any event
+ * that survived the upstream `filterPnlSnapshots` floor counts — including
+ * a lone `pnl_snapshot`, since surviving the floor means price moved past
+ * MIN_PRICE_PCT_DELTA or the per-position cooldown elapsed. Open-order set
+ * change is a fallback wake reason for ticks with zero events.
  */
 export function filterPassesLlm(
   events: ObserverEvent[],
   prior: ObserverSnapshot,
   currentOpenOrderIds: string[],
 ): boolean {
-  for (const ev of events) {
-    if (ev.type !== "pnl_snapshot") return true;
-  }
-  // No non-snapshot events. Check open-order set change as a fallback —
-  // an order cancellation doesn't produce a typed event in v1 but is still
-  // worth noting if it changes the trader's setup.
+  if (events.length > 0) return true;
   const priorIds = new Set(prior.openOrderIds);
   if (priorIds.size !== currentOpenOrderIds.length) return true;
   for (const id of currentOpenOrderIds) {
@@ -376,12 +356,16 @@ export class ObserverLoop {
     if (judge.decision === "fire" && judge.body) {
       await this.dispatch(judge, nowMs);
       this.lastProactiveAtMs = nowMs;
-      // stamp the `lastFired*` quad onto the next-snapshot
-      // entry for the affected position so the per-position pnl-snapshot
-      // gate has durable memory across ticks. Only on `pnl_snapshot`
-      // fires — other event types do not throttle.
-      stampLastFiredPnl(nextSnapshot, judge, gatedEvents, nowMs);
     }
+
+    // Arm the per-position pnl_snapshot floor for every pnl_snapshot the
+    // judge actually examined — fire OR silent. Reason: the floor is a
+    // wake-up gate, not a "spoke to user" record. If the judge spent an
+    // LLM call considering this position's PnL state, we shouldn't wake
+    // it again on the same state next tick. Without this, a silent judge
+    // verdict (e.g. "position running fine, no need to chat") would
+    // re-wake every tick and burn LLM cost.
+    stampPnlFloor(nextSnapshot, gatedEvents, nowMs);
 
     this.deps.logger.info(
       {
@@ -594,30 +578,21 @@ function mergeCancelOids(prior: ReadonlyArray<string>, fresh: ReadonlyArray<stri
  * Mutates `nextSnapshot.positions[key]` in place — the snapshot is owned
  * by the caller and persisted immediately after this call.
  */
-function stampLastFiredPnl(
+function stampPnlFloor(
   nextSnapshot: ObserverSnapshot,
-  judge: JudgeResponse,
   gatedEvents: ObserverEvent[],
   nowMs: number,
 ): void {
-  if (
-    judge.primaryEventType !== "pnl_snapshot" ||
-    judge.primarySymbol === null
-  ) {
-    return;
+  for (const ev of gatedEvents) {
+    if (ev.type !== "pnl_snapshot") continue;
+    const key = `${ev.symbol.toUpperCase()}|${ev.side}`;
+    const entry = nextSnapshot.positions[key];
+    if (!entry) continue;
+    entry.lastFiredPnl = ev.unrealizedPnl;
+    entry.lastFiredPnlPct = ev.unrealizedPnlPct;
+    entry.lastFiredMarkPrice = ev.markPrice;
+    entry.lastFiredAtMs = nowMs;
   }
-  const wantedSymbol = judge.primarySymbol.toUpperCase();
-  const ev = gatedEvents.find(
-    (e) => e.type === "pnl_snapshot" && e.symbol.toUpperCase() === wantedSymbol,
-  );
-  if (!ev || ev.type !== "pnl_snapshot") return;
-  const key = `${ev.symbol.toUpperCase()}|${ev.side}`;
-  const entry = nextSnapshot.positions[key];
-  if (!entry) return;
-  entry.lastFiredPnl = ev.unrealizedPnl;
-  entry.lastFiredPnlPct = ev.unrealizedPnlPct;
-  entry.lastFiredMarkPrice = ev.markPrice;
-  entry.lastFiredAtMs = nowMs;
 }
 
 /** Compact event-type histogram for the per-tick info log. */

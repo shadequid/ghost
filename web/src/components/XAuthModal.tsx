@@ -540,7 +540,7 @@ export function XAuthModal({ open, onClose, onSuccess }: XAuthModalProps) {
 
           {query.trim() === '' ? (
             // Default view: bulk row + per-account multi-select list.
-            <div className="flex flex-col w-full max-h-[420px] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
+            <div className="flex flex-col w-full max-h-[420px] overflow-y-auto pr-2" style={{ scrollbarGutter: 'stable' }}>
               <FollowerRow
                 label={`Include accounts you follow on X.com (${followingCount ?? '—'} followed)`}
                 subtitle="Auto-fetch tweets from your X.com following list."
@@ -563,7 +563,7 @@ export function XAuthModal({ open, onClose, onSuccess }: XAuthModalProps) {
           ) : (
             // Search-active view: "Followed" (green check) + "Not Follow"
             // (green Add link) sub-sections. Hides the bulk row entirely.
-            <div className="flex flex-col w-full max-h-[420px] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
+            <div className="flex flex-col w-full max-h-[420px] overflow-y-auto pr-2" style={{ scrollbarGutter: 'stable' }}>
               {searchError ? (
                 <span className="text-label-sm text-[var(--color-text-secondary)] py-3">{searchError}</span>
               ) : !searchResult ? (

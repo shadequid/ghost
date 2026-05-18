@@ -43,15 +43,21 @@ function formatTime(ts: Date): string {
 
 const COPY_FEEDBACK_MS = 1200;
 
+// Figma node 161:135 (User) + 1077:4591 (Ghost). Both bubbles share a 15px
+// rounded shell with a sharp pointer-corner toward the speaker (user → BR,
+// ghost → TL). Body text is 15px — the Figma spec lands between body-md (14)
+// and body-lg (16); 16 felt too heavy in live testing.
 const USER_BUBBLE =
   'max-w-[75%] self-end ' +
-  'bg-surface-overlay border border-border-default ' +
-  'rounded-[4px_4px_0px_4px] px-4 py-2.5 ' +
-  'text-body-md text-text-primary break-words whitespace-pre-wrap';
+  'bg-[var(--color-brand-soft)] ' +
+  'rounded-[15px_15px_0px_15px] px-4 py-3 ' +
+  'text-[15px] leading-[1.5] text-text-primary break-words whitespace-pre-wrap';
 
 const ASSISTANT_BUBBLE =
   'max-w-[92%] self-start ' +
-  'text-body-md text-text-primary break-words';
+  'bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] ' +
+  'rounded-[0px_15px_15px_15px] px-4 py-3 ' +
+  'text-[15px] leading-[1.5] text-text-primary break-words';
 
 const ICON_BTN_BASE =
   'bg-transparent border-none p-1.5 rounded-[4px] ' +
@@ -234,10 +240,13 @@ export const MessageBubble = memo(function MessageBubble({ message, onAction, on
       {/* Footer (time + copy) stays hidden while the assistant message
           is still streaming — the timestamp would be premature and the
           copy icon would capture partial text. Shows as soon as the
-          stream completes. User messages don't stream, so always shown. */}
+          stream completes. User messages don't stream, so always shown.
+          `mb-actions` keeps the whole row hidden until hover/focus —
+          per chat design, the timestamp shouldn't compete with the
+          message content at rest. */}
       {!message.streaming && message.type !== 'confirmation' && (
         <div
-          className={`flex items-center gap-1.5 mt-0.5 ${isUser ? 'self-end' : ''}`}
+          className={`mb-actions flex items-center gap-1.5 mt-0.5 ${isUser ? 'self-end' : ''}`}
         >
           {footerChildren}
         </div>

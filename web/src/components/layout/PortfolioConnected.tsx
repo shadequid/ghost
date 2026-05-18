@@ -158,7 +158,7 @@ function WalletPill({ selectedView, onSelect, onManageWallets }: Pick<Props, 'se
               onClick={() => { setOpen(false); onManageWallets(); }}
               className="flex items-center gap-1 w-full px-2.5 py-2 text-body-sm bg-transparent text-text-secondary border-none cursor-pointer hover:bg-white/[0.03]"
             >
-              <Settings size={10} /> Manage Wallets
+              <Settings size={10} /> Manage
             </button>
           </div>
         )}

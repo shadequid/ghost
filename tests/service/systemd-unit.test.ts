@@ -5,6 +5,7 @@ const BASE_OPTS: UnitOptions = {
   description: "Ghost AI Trading Companion",
   execStart: "/home/user/.bun/bin/ghost daemon",
   workingDir: "/home/user/.bun/bin",
+  logFile: "/home/user/.ghost/logs/ghost.log",
   env: {},
 };
 
@@ -53,6 +54,18 @@ describe("buildUnit", () => {
   test("includes WorkingDirectory from options", () => {
     const unit = buildUnit(BASE_OPTS);
     expect(unit).toContain("WorkingDirectory=/home/user/.bun/bin");
+  });
+
+  test("redirects stdout and stderr to the log file via append", () => {
+    const unit = buildUnit(BASE_OPTS);
+    expect(unit).toContain("StandardOutput=append:/home/user/.ghost/logs/ghost.log");
+    expect(unit).toContain("StandardError=append:/home/user/.ghost/logs/ghost.log");
+  });
+
+  test("throws when log file path contains newline", () => {
+    expect(() =>
+      buildUnit({ ...BASE_OPTS, logFile: "/tmp/bad\npath.log" }),
+    ).toThrow(/must not contain CR or LF/);
   });
 
   test("includes WantedBy=default.target", () => {

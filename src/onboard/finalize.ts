@@ -11,7 +11,7 @@ import { isCancel } from "@clack/prompts";
 import type { Logger } from "pino";
 import { resolveServiceController } from "../services/os/controller.js";
 import { resolveGhostExecPath, resolveBunPath, defaultLogDir } from "../services/os/utils.js";
-import { streamServiceLogs } from "../services/os/log-stream.js";
+import { runLogs } from "../commands/logs/index.js";
 import { runServiceStep } from "./steps/service.js";
 import { waitForGatewayReachable } from "../health/reachability.js";
 import { DEFAULT_GATEWAY_PORT } from "../config/schema.js";
@@ -110,7 +110,7 @@ export async function finalizeOnboard(opts: FinalizeOptions): Promise<void> {
     case "restarted":
       clackLog.success(`Ghost service ${result.action}. Dashboard: http://127.0.0.1:${port}`);
       clackLog.info("Streaming service logs (Ctrl+C to detach)...\n");
-      await streamServiceLogs();
+      await runLogs({ follow: true, json: false, plain: false, noColor: false });
       break;
     case "skipped":
       clackLog.info("Starting Ghost daemon in foreground...\n");

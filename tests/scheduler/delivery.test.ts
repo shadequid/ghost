@@ -172,6 +172,24 @@ class ContextBuilderStub {
   }
 }
 
+/**
+ * Minimal SessionManager stub — surfaces a pre-canned message array so the
+ * delivery handler can build its language-reference block.
+ */
+class SessionManagerStub {
+  constructor(private readonly userTexts: string[] = []) {}
+
+  getOrCreate(_key: string): { messages: Array<{ role: string; content: Array<{ type: string; text: string }> }> } {
+    void _key;
+    return {
+      messages: this.userTexts.map((t) => ({
+        role: "user",
+        content: [{ type: "text", text: t }],
+      })),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // getOutboundChannels — fanout resolver (replaces resolvePrimaryChannel)
 // ---------------------------------------------------------------------------
@@ -283,6 +301,7 @@ describe("createCronDeliveryHandler — web delivery (no telegram pairing)", () 
       tools: new ToolRegistryStub({ cron: cronTool }) as never,
       channelManager: makeManager(false),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     };
   });
@@ -344,6 +363,29 @@ describe("createCronDeliveryHandler — web delivery (no telegram pairing)", () 
     const result = await handler(makeJob());
     expect(result).toBe("Morning briefing text here");
   });
+
+  test("empty session → no language-reference block in runner message", async () => {
+    // Default deps use SessionManagerStub() with no user texts.
+    const handler = createCronDeliveryHandler(deps);
+    await handler(makeJob());
+    const message = runner.calls[0].message;
+    expect(message).not.toContain("Recent user messages");
+    expect(message).not.toContain("language reference");
+  });
+
+  test("session with user messages → prepended language-reference block (verbatim pass-through)", async () => {
+    const first = "how is my APT position doing?";
+    const second = "open a SUI short for me";
+    deps.sessionManager = new SessionManagerStub([first, second]) as never;
+    const handler = createCronDeliveryHandler(deps);
+    await handler(makeJob());
+    const message = runner.calls[0].message;
+    expect(message).toContain("Recent user messages");
+    expect(message).toContain(first);
+    expect(message).toContain(second);
+    // The lang-ref block must appear before the REMINDER_NOTE_PREFIX content.
+    expect(message.indexOf("Recent user messages")).toBeLessThan(message.indexOf("natural message"));
+  });
 });
 
 describe("createCronDeliveryHandler — empty/whitespace response", () => {
@@ -356,6 +398,7 @@ describe("createCronDeliveryHandler — empty/whitespace response", () => {
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(false),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     };
   }
@@ -393,6 +436,7 @@ describe("createCronDeliveryHandler — CronTool context wrapping", () => {
       tools: new ToolRegistryStub({ cron: cronTool }) as never,
       channelManager: makeManager(false),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     };
     const handler = createCronDeliveryHandler(deps);
@@ -413,6 +457,7 @@ describe("createCronDeliveryHandler — CronTool context wrapping", () => {
       tools: new ToolRegistryStub({ cron: cronTool }) as never,
       channelManager: makeManager(false),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     };
     const handler = createCronDeliveryHandler(deps);
@@ -429,6 +474,7 @@ describe("createCronDeliveryHandler — CronTool context wrapping", () => {
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(false),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     };
     const handler = createCronDeliveryHandler(deps);
@@ -452,6 +498,7 @@ describe("createCronDeliveryHandler — telegram delivery (paired allowlist)", (
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(true),
       pairingStore: makePairingStore(["111", "222"]),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     });
     await handler(makeJob());
@@ -485,6 +532,7 @@ describe("createCronDeliveryHandler — telegram delivery (paired allowlist)", (
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(true),
       pairingStore: makePairingStore(["111", "222"]),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     });
     await handler(makeJob("morning-briefing"));
@@ -503,6 +551,7 @@ describe("createCronDeliveryHandler — telegram delivery (paired allowlist)", (
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(true),
       pairingStore: makePairingStore(),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     });
     await handler(makeJob());
@@ -522,6 +571,7 @@ describe("createCronDeliveryHandler — telegram delivery (paired allowlist)", (
       tools: new ToolRegistryStub() as never,
       channelManager: makeManager(true),
       pairingStore: makePairingStore(["*"]),
+      sessionManager: new SessionManagerStub() as never,
       logger: makeLogger() as never,
     });
     await handler(makeJob());

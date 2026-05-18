@@ -176,7 +176,11 @@ export function TerminalModal({ open, onClose, title, children, width = 600, hea
         {!hideHeader && (
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)]">
             <div className="flex items-center gap-3">
-              <span className="text-body-sm-medium text-[var(--color-brand-default)] tracking-[0.5px]">{title}</span>
+              {/* Title — 16px medium, matches the hideHeader-mode title style
+                  used by TelegramSetupModal / XAuthModal / ExposeModal so the
+                  default-header modals (Trade History, Upload Skill, External
+                  Link) read at the same weight. */}
+              <span className="text-body-lg-semibold text-text-primary">{title}</span>
             </div>
             <div className="flex items-center gap-2">
               {headerRight}

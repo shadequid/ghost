@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   buildLauncherCmd,
+  buildInvisibleVbs,
+  buildScheduledTaskXml,
   SchtasksController,
 } from "../../src/services/os/schtasks.js";
 
@@ -75,14 +77,21 @@ describe("buildLauncherCmd", () => {
     expect(cmd).not.toContain(":loop");
     expect(cmd).not.toContain("goto loop");
     expect(cmd).not.toContain("timeout /t 5");
-    expect(cmd).not.toContain("EXITCODE");
     expect(cmd).not.toContain("[supervisor]");
+
+    // Trailing `exit /b %ERRORLEVEL%` propagates ghost.exe's non-zero status
+    // to Task Scheduler so RestartOnFailure actually fires on crash.
+    expect(cmd).toContain("exit /b %ERRORLEVEL%");
+
+    // `<nul` neutralises process.stdin.isTTY under schtasks-launched cmd.exe
+    // so guardAgainstRunningService skips its interactive prompt.
+    expect(cmd).toContain("daemon <nul 1>>");
 
     // GHOST_LOG set line before the invocation.
     expect(cmd).toContain(`set "GHOST_LOG=${join(homedir(), ".ghost", "logs", "ghost.log")}"`);
 
     // Daemon invocation with merged single-stream redirect via GHOST_LOG variable.
-    expect(cmd).toContain('"C:\\Users\\test\\.bun\\bin\\ghost.exe" daemon 1>>"%GHOST_LOG%" 2>&1');
+    expect(cmd).toContain('"C:\\Users\\test\\.bun\\bin\\ghost.exe" daemon <nul 1>>"%GHOST_LOG%" 2>&1');
 
     // Env passthrough.
     expect(cmd).toContain('set "FOO=bar"');
@@ -91,6 +100,91 @@ describe("buildLauncherCmd", () => {
     expect(cmd).not.toContain("daemon.stdout.log");
     expect(cmd).not.toContain("daemon.stderr.log");
     expect(cmd).not.toContain("2>>");
+  });
+});
+
+describe("buildInvisibleVbs", () => {
+  const launcher = "C:\\Users\\trader\\.ghost\\state\\ghost-daemon.cmd";
+
+  test("uses WScript.Shell.Run with hidden style and wait", () => {
+    const vbs = buildInvisibleVbs(launcher);
+    // Style 0 = SW_HIDE, wait = True so exit code propagates. Fire-and-forget
+    // (False) would break crash detection.
+    expect(vbs).toContain('shell.Run("""' + launcher + '""", 0, True)');
+  });
+
+  test("propagates exit code via WScript.Quit", () => {
+    const vbs = buildInvisibleVbs(launcher);
+    expect(vbs).toContain("WScript.Quit exitCode");
+  });
+
+  test("restarts ONLY on JS crash codes 100 and 101", () => {
+    const vbs = buildInvisibleVbs(launcher);
+    // Loop continues only on uncaughtException (100) / unhandledRejection (101).
+    // Operator stop (0), external kill (1), config errors must NOT respawn.
+    expect(vbs).toContain("If exitCode <> 100 And exitCode <> 101 Then Exit Do");
+  });
+
+  test("poison-pill abort after 5 consecutive crash-restarts", () => {
+    const vbs = buildInvisibleVbs(launcher);
+    expect(vbs).toContain("attempts >= 5");
+  });
+
+  test("5-second back-off between restart attempts", () => {
+    const vbs = buildInvisibleVbs(launcher);
+    expect(vbs).toContain("WScript.Sleep 5000");
+  });
+
+  test("escapes embedded double quotes in launcher path", () => {
+    // NTFS forbids " in filenames so this is defensive only.
+    const vbs = buildInvisibleVbs('C:\\a"b.cmd');
+    expect(vbs).toContain('C:\\a""b.cmd');
+  });
+});
+
+describe("buildScheduledTaskXml", () => {
+  const vbs = "C:\\Users\\trader\\.ghost\\state\\ghost-daemon-invisible.vbs";
+
+  test("declares Task Scheduler 1.2 schema with UTF-16 encoding", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain(`<?xml version="1.0" encoding="UTF-16"?>`);
+    expect(xml).toContain(`<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">`);
+  });
+
+  test("registers wscript.exe + .vbs as the Exec action (invisible console)", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain("<Command>wscript.exe</Command>");
+    expect(xml).toContain(`<Arguments>"${vbs}"</Arguments>`);
+  });
+
+  test("uses LogonTrigger with the resolved UserId — ONLOGON behaviour", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain("<LogonTrigger>");
+    expect(xml).toContain("<UserId>DESKTOP\\trader</UserId>");
+  });
+
+  test("InteractiveToken principal — no stored password (= /IT, no /NP needed)", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain("<LogonType>InteractiveToken</LogonType>");
+    expect(xml).toContain("<RunLevel>LeastPrivilege</RunLevel>");
+  });
+
+  test("RestartOnFailure: 3 retries × 1-minute interval — crash recovery", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain("<RestartOnFailure>");
+    expect(xml).toContain("<Interval>PT1M</Interval>");
+    expect(xml).toContain("<Count>3</Count>");
+  });
+
+  test("AllowHardTerminate true — schtasks /End actually terminates the daemon", () => {
+    const xml = buildScheduledTaskXml(vbs, "DESKTOP\\trader");
+    expect(xml).toContain("<AllowHardTerminate>true</AllowHardTerminate>");
+  });
+
+  test("escapes XML-unsafe characters in UserId and VBS path", () => {
+    const xml = buildScheduledTaskXml('C:\\path\\with&amp.vbs', `DOMAIN\\<weird>"user`);
+    expect(xml).toContain(`<Arguments>"C:\\path\\with&amp;amp.vbs"</Arguments>`);
+    expect(xml).toContain("<UserId>DOMAIN\\&lt;weird&gt;&quot;user</UserId>");
   });
 });
 
