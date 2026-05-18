@@ -24,7 +24,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 **1. Install Ghost**
 
 ```bash
-npm install -g @hyperflow.fun/ghost
+bun install -g @hyperflow.fun/ghost
 ```
 
 **2. Onboard**
@@ -38,6 +38,10 @@ You'll be asked to pick:
 - **Trading Mode** — Paper (virtual funds, no wallet) or Live (real trades on Hyperliquid)
 - **LLM Model** — Claude Code, Anthropic, OpenAI, Gemini, OpenRouter, or a custom endpoint
 - **Install Ghost service** — Select **Yes** to keep Ghost running in the background
+
+> **Paper trading?** Pick **Paper** during onboard for a simulated 10,000 USDC
+> balance — no wallet, no real trades. Set a custom balance with
+> `ghost daemon --paper -b 50000`.
 
 **3. Open the dashboard**
 
@@ -55,6 +59,24 @@ ghost uninstall       # Remove service + ~/.ghost
 
 See the [User Guide](USER_GUIDE.md) for the full reference.
 
+## Telegram (optional)
+
+Chat with Ghost from Telegram instead of (or alongside) the dashboard.
+
+**From the dashboard** — click the **Telegram icon** in the top bar and follow
+the in-app steps. Most users only need this.
+
+**From the CLI** — same flow, scripted:
+
+```bash
+ghost channel setup    # Create the bot + bind it to your account
+ghost channel pair     # Pair another device to the same channel
+ghost channel status   # Show channel + pairing state
+```
+
+Once connected, Ghost mirrors trade prompts, alerts, and confirmations to
+Telegram.
+
 ## Documentation
 
 | Document | Purpose |
@@ -62,10 +84,6 @@ See the [User Guide](USER_GUIDE.md) for the full reference.
 | [User Guide](USER_GUIDE.md) | Install, setup, daily commands, update, uninstall, troubleshooting |
 | [Install & Onboard Guide](INSTALL_GUIDE.md) | Step-by-step onboard flow for AI agents |
 | [Developer Guide](CLAUDE.md) | Architecture, tech stack, conventions, development pipeline |
-| [Product Vision](PRODUCT_VISION.md) | Market research, product vision, roadmap |
-| [Features](FEATURES.md) | 22 features across 4 pillars |
-| [Personas](PERSONAS.md) | Trader personas and emotion-response framework |
-| [Journeys](JOURNEYS.md) | Journey narratives — Ghost in action for each persona |
 
 ## Data Storage
 
@@ -77,17 +95,32 @@ All data stored in `~/.ghost/` (config, credentials, database, memory, sessions)
 - If you installed an earlier version, uninstall first — this release contains breaking changes:
   ```bash
   ghost uninstall
-  npm uninstall -g @hyperflow.fun/ghost
+  bun remove -g @hyperflow.fun/ghost
   ```
 
 ## Security
 
 The Ghost gateway has no built-in authentication layer. By default it binds to
-`0.0.0.0:15401`, which is convenient for local use but requires external
-hardening before exposing the port to the internet. Options include Cloudflare
-Tunnel + Access, Tailscale Serve, or ngrok OAuth. Alternatively, set
-`gateway.host=127.0.0.1` in `~/.ghost/config.json` to restrict access to
-localhost only.
+loopback only (`gateway.host=127.0.0.1`), so the dashboard is reachable from
+the same machine but invisible to the network — safe to leave as-is for local
+use.
+
+To expose Ghost over the network (LAN, VPS, public IP), opt in explicitly by
+setting **both** in `~/.ghost/config.json`:
+
+```jsonc
+{
+  "gateway": {
+    "host": "0.0.0.0",
+    "allowPublicBind": true
+  }
+}
+```
+
+The daemon refuses to start with a non-loopback host unless
+`allowPublicBind=true`, so accidental exposure can't happen. Before flipping
+the flag, harden access externally — Cloudflare Tunnel + Access, Tailscale
+Serve, or ngrok OAuth are the recommended options.
 
 See [docs/security/network-exposure.md](docs/security/network-exposure.md) for
 detailed recipes and what to avoid.

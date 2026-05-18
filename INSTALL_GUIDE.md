@@ -36,7 +36,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 Then install Ghost globally:
 
 ```bash
-npm install -g @hyperflow.fun/ghost
+bun install -g @hyperflow.fun/ghost
 ```
 
 Verify:
@@ -45,7 +45,7 @@ Verify:
 ghost --version
 ```
 
-If `ghost --version` fails immediately after install, instruct the user to restart their terminal so the new PATH entry from npm's global bin directory is picked up.
+If `ghost --version` fails immediately after install, instruct the user to restart their terminal so the new PATH entry from bun's global bin directory is picked up.
 
 Note: Ghost requires Bun at runtime — the `ghost` binary is a Bun script (`#!/usr/bin/env bun`). Make sure Step 2 (Bun install) succeeded before running any `ghost` command.
 
@@ -150,11 +150,12 @@ ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
 
 ## Security Note
 
-The Ghost gateway has no built-in authentication. The default bind address is
-`0.0.0.0:15401`. On a laptop behind a home NAT router this is fine. On a VPS
-or any machine with a public IP, secure external access before using Ghost
-remotely. See [docs/security/network-exposure.md](docs/security/network-exposure.md)
-for tunnel recipes (Cloudflare, Tailscale, ngrok) and how to restrict to
-localhost-only.
+The Ghost gateway has no built-in authentication. By default it binds to
+loopback only (`127.0.0.1:15401`), reachable only from the same machine.
+Exposing it over the network requires setting **both** `gateway.host=0.0.0.0`
+and `gateway.allowPublicBind=true` in `~/.ghost/config.json`; without the
+opt-in flag the daemon refuses to start. See
+[docs/security/network-exposure.md](docs/security/network-exposure.md) for
+tunnel recipes (Cloudflare, Tailscale, ngrok) before flipping the switch.
 
 Without `--provider`/`--model`, `ghost onboard` runs the interactive wizard.
