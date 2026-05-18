@@ -95,12 +95,19 @@ export function NewsArticlePanel({ article, compact, onClose }: NewsArticlePanel
         (compact ? 'right-0' : 'right-[408px]')
       }
     >
-      <div className="flex-1 overflow-y-auto py-5 flex flex-col gap-[19px] w-[725px] mx-auto">
-        {/* Top row: source meta + read full article link */}
-        <div className="flex items-center justify-between">
+      {/* Scroll container fills the panel width so the scrollbar sits at
+          the panel's right edge instead of floating mid-panel beside the
+          centered content column. Inner column keeps the 725px cap. */}
+      <div className="flex-1 overflow-y-auto w-full">
+        <div className="py-4 px-6 flex flex-col items-end gap-[19px] w-[725px] mx-auto">
+        {/* Top row: source meta · Summary-by-AI badge.
+            Figma 1091:4908 moves the "Summary by AI" tag to the top-right;
+            the "Read full" affordance migrates to the bottom of the panel
+            as a button. */}
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 min-w-0">
             <span
-              className="inline-flex items-center justify-center rounded-full border bg-[#0f1012] shrink-0"
+              className="inline-flex items-center justify-center rounded-full border bg-[#0f1012] shrink-0 overflow-hidden"
               style={{ width: 32, height: 32, borderColor: 'rgba(122,129,128,0.3)' }}
             >
               <Avatar
@@ -111,37 +118,28 @@ export function NewsArticlePanel({ article, compact, onClose }: NewsArticlePanel
               />
             </span>
             <div className="flex flex-col min-w-0">
-              <span className="text-body-md-medium text-text-primary leading-[1.5] truncate">
+              <span className="text-label-lg text-text-primary leading-[1.5] truncate">
                 {sourceName}
               </span>
-              <span className="text-caption text-text-secondary leading-[1.5]">
+              <span className="text-body-sm text-text-secondary leading-[1.5]">
                 {timeAgo(article.publishedAt)}
               </span>
             </div>
           </div>
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group inline-flex items-center gap-[5px] text-body-sm text-brand-default no-underline cursor-pointer transition-[color,gap] duration-base ease-out hover:gap-2"
-          >
-            Read full article
-            <ArrowUpRightIcon />
-          </a>
+          <span className="inline-flex items-center gap-2 py-[2px] rounded-[6px]">
+            <SparklesIcon />
+            <span className="text-body-sm text-text-tertiary leading-[1.5] whitespace-nowrap">
+              Summary by AI
+            </span>
+          </span>
         </div>
 
-        <div className="flex flex-col items-start gap-2">
-          {/* Summary by AI badge */}
-          <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-[3px] bg-surface-overlay">
-            <SparklesIcon />
-            <span className="text-body-sm text-text-tertiary leading-[1.5]">Summary by AI</span>
-          </span>
-
-          {/* Title */}
+        <div className="flex flex-col items-start gap-2 w-full">
+          {/* Title — 22px semibold (heading-md) */}
           <h1 className="text-heading-md text-text-primary leading-[1.5] m-0">{article.title}</h1>
 
           {/* Meta line */}
-          <div className="text-body-sm text-text-secondary leading-[1.5]">
+          <div className="text-body-md text-text-secondary leading-[1.5]">
             <a
               href={article.url}
               target="_blank"
@@ -154,24 +152,42 @@ export function NewsArticlePanel({ article, compact, onClose }: NewsArticlePanel
             {publishedDate}
           </div>
 
-          {/* Lead paragraph */}
+          {/* Lead paragraph — 16px (body-lg) per Figma */}
           {leadParagraph && (
-            <p className="text-body-md text-text-primary leading-[1.5] m-0">{leadParagraph}</p>
+            <p className="text-body-lg text-text-primary leading-[1.5] m-0">{leadParagraph}</p>
           )}
         </div>
 
-        {/* Main image */}
+        {/* Main image — full panel width per Figma */}
         {article.imageUrl && (
           <img
             src={article.imageUrl}
             alt=""
             loading="lazy"
-            className="w-full max-w-[515px] h-[290px] object-cover rounded-[2px]"
+            className="w-full aspect-[1920/1080] object-cover rounded-[2px]"
           />
         )}
 
         {/* Deep summary body (3-state) */}
         <DeepSummaryBody state={state} fallbackSummary={fallbackSummary} />
+
+        {/* Read-full-article button — bottom-aligned per Figma 1091:4901 */}
+        <a
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={
+            'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-[4px] ' +
+            'bg-[var(--color-surface-overlay)] border border-[var(--color-border-strong)] ' +
+            'text-body-md-medium text-text-secondary no-underline cursor-pointer ' +
+            'transition-colors duration-fast ease-out btn-press ' +
+            'hover:text-text-primary hover:border-[var(--color-text-tertiary)]'
+          }
+        >
+          Read full article
+          <ArrowUpRightIcon />
+        </a>
+        </div>
       </div>
     </aside>,
     document.body,
@@ -222,7 +238,7 @@ function DeepSummaryBody({
   if (state.kind === 'failed') {
     if (!fallbackSummary) return null;
     return (
-      <p className="text-body-md text-text-primary leading-[1.5] m-0 whitespace-pre-wrap">
+      <p className="text-body-lg text-text-primary leading-[1.5] m-0 whitespace-pre-wrap w-full">
         {fallbackSummary}
       </p>
     );
@@ -230,9 +246,9 @@ function DeepSummaryBody({
 
   const paragraphs = splitParagraphs(state.deepSummary);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 w-full">
       {paragraphs.map((para, i) => (
-        <p key={i} className="text-body-md text-text-primary leading-[1.5] m-0">
+        <p key={i} className="text-body-lg text-text-primary leading-[1.5] m-0">
           {para}
         </p>
       ))}

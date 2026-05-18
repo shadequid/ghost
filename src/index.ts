@@ -27,6 +27,10 @@ const { values, positionals } = parseArgs({
     json: { type: "boolean" },
     channel: { type: "string" },
     token: { type: "string" },
+    follow: { type: "boolean", short: "f" },
+    lines: { type: "string", short: "n" },
+    plain: { type: "boolean" },
+    "no-color": { type: "boolean" },
   },
   allowPositionals: true,
   strict: false,
@@ -96,9 +100,17 @@ try {
     case "skills":
       await runSkills(positionals.slice(1), { config: stringOpt(values.config) });
       break;
-    case "logs":
-      await runLogs();
+    case "logs": {
+      const { runLogs } = await import("./commands/logs/index.js");
+      await runLogs({
+        follow: Boolean(values.follow),
+        lines: stringOpt(values.lines),
+        json: Boolean(values.json),
+        plain: Boolean(values.plain),
+        noColor: Boolean(values["no-color"]),
+      });
       break;
+    }
     case "update":
       await runUpdate(rootLogger, { channel: stringOpt(values.channel) });
       break;
@@ -321,11 +333,6 @@ async function runSkills(subArgs: string[], opts: { config?: string }) {
   }
 }
 
-async function runLogs(): Promise<void> {
-  const { streamServiceLogs } = await import("./services/os/log-stream.js");
-  await streamServiceLogs();
-}
-
 async function runUpdate(logger: Logger, opts: { channel?: string }): Promise<void> {
   const { runUpdate: execUpdate } = await import("./update/run.js");
   const { exitCode } = await execUpdate({ logger, channel: opts.channel });
@@ -382,7 +389,12 @@ Usage:
   ghost update                    Update Ghost to the latest stable version
   ghost update --channel=rc       Update to the latest pre-release (dev testers)
   ghost uninstall                 Remove OS service + ~/.ghost (interactive confirm)
-  ghost logs                      Stream service logs (Ctrl+C to stop)
+  ghost logs                      Print last 200 lines of service log and exit
+  ghost logs -f                   Follow the service log (Ctrl+C to stop)
+  ghost logs -n 50                Print last 50 lines and exit
+  ghost logs --json               Emit JSON log lines (machine-readable)
+  ghost logs --plain              Plain text (no ANSI), default when piped
+  ghost logs --no-color           Disable ANSI colors even in TTY
   ghost providers                 List available LLM providers
   ghost providers --models <id>   List models for a provider
   ghost skills list               List available skills

@@ -1,5 +1,4 @@
 import { Avatar } from '@/components/ui';
-import newsMenu from '@/assets/news-menu.svg';
 import {
   type NewsArticle,
   SOURCE_NAMES,
@@ -91,12 +90,16 @@ export function NewsRow({
           )}
           <button
             type="button"
-            className="bg-transparent border-none cursor-pointer text-text-tertiary hover:text-text-primary hover:bg-white/[0.05] transition-colors duration-fast inline-flex items-center justify-center w-7 h-7 rounded-[4px] -mr-1"
+            className="bg-transparent border-none cursor-pointer text-text-muted hover:text-text-primary hover:bg-white/[0.05] transition-colors duration-fast inline-flex items-center justify-center w-7 h-7 rounded-[4px] -mr-1"
             title="More"
             aria-label="Article actions"
             onClick={(e) => { e.stopPropagation(); onToggleMenu(article.id); }}
           >
-            <img src={newsMenu} alt="" aria-hidden="true" width={3.158} height={12} className="block" />
+            {/* Vertical 3-dot — inline so it inherits `currentColor` from the
+                button's text-* class (Figma node I841:8860;278:1952). */}
+            <svg width="3.158" height="12" viewBox="0 0 3.1582 12" fill="currentColor" aria-hidden="true">
+              <path d="M1.5791 8.8418C2.45102 8.84187 3.15812 9.54898 3.1582 10.4209C3.1582 11.2929 2.45107 11.9999 1.5791 12C0.707066 12 0 11.2929 0 10.4209C7.84657e-05 9.54894 0.707114 8.8418 1.5791 8.8418ZM1.5791 4.4209C2.45107 4.42097 3.1582 5.12802 3.1582 6C3.1582 6.87198 2.45107 7.57903 1.5791 7.5791C0.707066 7.5791 0 6.87203 0 6C6.57142e-06 5.12798 0.70707 4.4209 1.5791 4.4209ZM1.5791 0C2.45107 7.60165e-05 3.1582 0.70712 3.1582 1.5791C3.15812 2.45101 2.45102 3.15813 1.5791 3.1582C0.707117 3.1582 8.33614e-05 2.45106 0 1.5791C0 0.707073 0.707066 0 1.5791 0Z" />
+            </svg>
           </button>
         </div>
       </div>

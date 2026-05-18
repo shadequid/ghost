@@ -11,16 +11,18 @@ import type { CronSchedule } from "./types.js";
 /** The long-form prompt that drives the morning briefing agent turn.
  *  Exported so intel-briefing tool and delivery handler stay in sync. */
 export const BRIEFING_PROMPT =
-  "Run the morning briefing: gather my positions, watchlist, recent news, whale activity overview, funding rates, and fear & greed index. Summarize in under 15 sentences covering portfolio changes, news, market signals, and notable events.";
+  "Run the morning briefing. Call tools to fetch the latest data: open " +
+  "positions, recent fills / trade history, watchlist, news, and market " +
+  "signals (funding, whale activity, fear & greed). Summarize in under 15 " +
+  "sentences, in the language the user has been chatting in.";
 
 /** The long-form prompt that drives the end-of-day recap agent turn.
  *  Exported alongside BRIEFING_PROMPT so consumers (e.g. tools, tests) stay in sync. */
 export const RECAP_PROMPT =
-  "Run the end-of-day recap. Summarize today's realized + unrealized PnL across positions, " +
-  "biggest winner / biggest loser, position changes (opened, closed, scaled — including " +
-  "external trades), and one notable market context note relevant to my holdings or watchlist. " +
-  "Single short message, no thread. If I had no activity and no positions today, send a brief one-liner " +
-  "acknowledging the quiet day rather than going silent.";
+  "Run the end-of-day recap. Call tools to fetch today's trade history and " +
+  "current open positions. Summarize today's PnL, position changes (opened, " +
+  "closed, scaled), and one notable market note. Brief one-liner if I had no " +
+  "activity. Reply in the language the user has been chatting in.";
 
 export interface DefaultJobSpec {
   /** Unique name — used as idempotency key; must match the job's `name` field. */

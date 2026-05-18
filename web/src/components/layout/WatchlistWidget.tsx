@@ -78,22 +78,24 @@ function WatchlistInternalHeader() {
   );
 }
 
-function ChangeIndicator({ pct }: { pct: number | null }) {
-  if (pct == null) return <span className="text-body-sm text-text-muted">--</span>;
-  const isUp = pct >= 0;
-  return (
-    <div className="flex items-center gap-0.5">
-      <svg width="8" height="6" viewBox="0 0 8 6" fill="none" aria-hidden="true" className={isUp ? '' : 'rotate-180'}>
-        <path d="M4 0L8 6H0L4 0Z" fill={isUp ? 'var(--color-success-default)' : 'var(--color-error-text)'} />
-      </svg>
-      <span
-        className="text-body-sm [font-variant-numeric:tabular-nums]"
-        style={{ color: isUp ? 'var(--color-success-default)' : 'var(--color-error-text)' }}
-      >
-        {Math.abs(pct).toFixed(2)}%
-      </span>
-    </div>
-  );
+// TradingView-style 24h change formatters. Color follows the sign of the
+// 24h delta — green up, red down, muted when unknown. The signed prefix
+// is part of the formatted string so the row reads as a single number,
+// not a glyph + magnitude pair.
+function formatChange(v: number): string {
+  const abs = Math.abs(v);
+  const dp = abs >= 100 ? 2 : abs >= 1 ? 2 : 4;
+  const body = abs.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return (v >= 0 ? '+' : '-') + body;
+}
+
+function formatPct(v: number): string {
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+}
+
+function changeColor(v: number | null): string {
+  if (v == null) return 'var(--color-text-secondary)';
+  return v >= 0 ? 'var(--color-success-default)' : 'var(--color-error-text)';
 }
 
 interface TokenData {
@@ -146,6 +148,15 @@ export function WatchlistWidget() {
     fetchTokens();
   }, [loadWatchlist, fetchTokens]);
 
+  // Continuous price refresh — the gateway emits `trading.price.update`
+  // events but they don't always fire fast enough to feel "live", so we
+  // also poll the token list every 4s for snappier tick updates.
+  useEffect(() => {
+    if (!connected) return;
+    const id = window.setInterval(() => fetchTokens(), 4000);
+    return () => window.clearInterval(id);
+  }, [connected, fetchTokens]);
+
   useEffect(() => {
     return subscribe((evt) => {
       if (evt.event === 'trading.watchlist.changed' || evt.event === 'chat.done') {
@@ -153,10 +164,11 @@ export function WatchlistWidget() {
       }
       if (evt.event === 'trading.price.update') {
         const { symbol, price } = evt.payload as { symbol: string; price: number };
-        setTokenData((prev) => {
-          if (prev.prices[symbol] === price) return prev;
-          return { ...prev, prices: { ...prev.prices, [symbol]: price } };
-        });
+        setTokenData((prev) =>
+          prev.prices[symbol] === price
+            ? prev
+            : { ...prev, prices: { ...prev.prices, [symbol]: price } },
+        );
       }
     });
   }, [subscribe, loadWatchlist]);
@@ -230,25 +242,34 @@ export function WatchlistWidget() {
   return (
     <div className={SHELL_CLS}>
       <WatchlistInternalHeader />
-      <div className="flex flex-col pl-2.5 pb-2">
+      <div className="flex flex-col pb-2">
         {symbols.map((sym) => {
           const price = prices[sym];
           const prevDay = prevDayPrices[sym];
-          const change24h = price != null && prevDay != null && prevDay > 0 ? ((price - prevDay) / prevDay) * 100 : null;
+          const hasChange = price != null && prevDay != null && prevDay > 0;
+          const changeVal = hasChange ? price - prevDay : null;
+          const changePct = hasChange ? ((price - prevDay) / prevDay) * 100 : null;
+          const color = changeColor(changePct);
           return (
             <div
               key={sym}
-              className="group flex h-[42px] items-center justify-between py-4 pr-2.5 cursor-pointer transition-colors duration-fast ease-out hover:bg-white/[0.03]"
+              // TradingView-style row: symbol on the left, then a right-
+              // aligned trio — current price, 24h change value, 24h change %.
+              // All three numbers share one color driven by the sign of the
+              // 24h delta (green up, red down, muted when unknown).
+              className="group flex h-[42px] items-center justify-between gap-2 py-4 px-2.5 cursor-pointer transition-colors duration-fast ease-out hover:bg-white/[0.03]"
               onClick={() => panel?.open({ symbol: sym })}
             >
-              <div className="flex items-center gap-1.5 text-body-md text-text-primary">
+              <div className="flex items-center gap-1.5 text-body-md text-text-primary min-w-0">
                 <SymbolBadges symbol={sym} maxLeverages={maxLeverages} />
               </div>
-              <div className="flex items-center gap-1 [font-variant-numeric:tabular-nums]">
-                <span className="text-body-sm text-text-primary">
-                  {price != null ? formatPrice(price) : '--'}
-                </span>
-                <ChangeIndicator pct={change24h} />
+              <div className="flex items-center gap-3 text-body-sm [font-variant-numeric:tabular-nums]">
+                {/* Price stays white — TradingView convention. Only the
+                    change columns carry the green/red/muted color so the
+                    eye lands on direction signal, not the current price. */}
+                <span className="text-text-primary">{price != null ? formatPrice(price) : '--'}</span>
+                <span style={{ color }}>{changeVal != null ? formatChange(changeVal) : '--'}</span>
+                <span style={{ color }}>{changePct != null ? formatPct(changePct) : '--'}</span>
               </div>
             </div>
           );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGateway } from '@/hooks/useGateway';
 import { TerminalModal } from '@/components/TerminalModal';
-import { AlertBox, Divider } from '@/components/AlertBox';
+import { AlertBox } from '@/components/AlertBox';
 
 interface TelegramSetupModalProps {
   open: boolean;
@@ -38,18 +38,6 @@ interface AllowlistEntry {
   displayName: string | null;
   addedAt: number;
 }
-
-// Shared pill style for the Approve action on pending pair requests — same
-// as XAuthModal. The setup view now uses the Figma mint CTA instead.
-const PILL_BTN_CLS =
-  'bg-transparent border border-[var(--color-border-default)] rounded-[4px] px-3 py-1.5 ' +
-  'text-[var(--color-text-secondary)] text-body-sm cursor-pointer btn-press ' +
-  'transition-colors duration-fast ease-out ' +
-  'hover:border-[var(--color-brand-default)] hover:text-[var(--color-brand-default)] ' +
-  'focus-visible:border-[var(--color-brand-default)] focus-visible:text-[var(--color-brand-default)] ' +
-  'disabled:cursor-default disabled:opacity-60 ' +
-  'disabled:hover:border-[var(--color-border-default)] disabled:hover:text-[var(--color-text-secondary)] ' +
-  'disabled:focus-visible:border-[var(--color-border-default)] disabled:focus-visible:text-[var(--color-text-secondary)]';
 
 function formatAge(ms: number): string {
   if (ms < 0) return 'just now';
@@ -455,78 +443,104 @@ export function TelegramSetupModal({ open, onClose, onSuccess, initialStatus }: 
 
       {connected && (
         <>
-          <Divider>
-            <span className="inline-flex items-center gap-1.5">
-              Pending pair requests
-              <span className={requests.length > 0 ? 'text-[#00b8ff]' : 'opacity-50'}>
-                ({requests.length})
-              </span>
-            </span>
-          </Divider>
-          {requests.length > 0 && (
-            <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto pr-1">
-              {requests.map((r) => (
-                <div
-                  key={r.code}
-                  className="flex items-center justify-between px-2 py-1.5 bg-[rgba(255,255,255,0.02)] border border-[var(--color-border-default)] rounded-[4px] flex-shrink-0"
-                >
-                  <div className="flex flex-col gap-px min-w-0">
-                    <span className="text-body-sm text-[var(--color-text-primary)] truncate">
-                      {r.username ? `@${r.username}` : `id:${r.senderId}`} · code {r.code}
-                    </span>
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">{formatAge(now - r.createdAt)}</span>
-                  </div>
-                  <button
-                    onClick={() => handleApprove(r.code)}
-                    disabled={busy}
-                    className={PILL_BTN_CLS}
-                  >Approve</button>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Users — pending requests + approved entries merged into a
+              single list per Figma 997:4839. Each row is a 40px-tall pill
+              with a green status dot, the @handle, and the action on the
+              right (Approve link for pending, × for approved). Rows
+              stack flush with -1px collapse so the borders share a hair. */}
+          <div className="flex flex-col items-start gap-[5px] w-full">
+            <span className="text-body-sm text-text-primary">Users</span>
+            {(requests.length === 0 && allowlist.length === 0) ? (
+              <div className="bg-[var(--color-surface-canvas)] border border-[var(--color-border-subtle)] h-10 flex items-center justify-center px-4 w-full">
+                <span className="text-body-sm text-text-secondary">No users yet — share the bot to start pairing</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-start w-full">
+                {requests.map((r, idx) => {
+                  const label = r.username ? `@${r.username}` : `id:${r.senderId}`;
+                  const isLast = idx === requests.length - 1 && allowlist.length === 0;
+                  return (
+                    <div
+                      key={`pending:${r.code}`}
+                      className={
+                        'bg-[var(--color-surface-canvas)] border border-[var(--color-border-subtle)] ' +
+                        'flex h-10 items-center justify-between px-4 w-full ' +
+                        (isLast ? '' : '-mb-px')
+                      }
+                      title={`Pending · ${formatAge(now - r.createdAt)} · code ${r.code}`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="status-dot-live w-[7px] h-[7px] rounded-full bg-[var(--color-brand-default)] flex-shrink-0" aria-hidden="true" />
+                        <span className="text-body-md text-text-primary truncate">{label}</span>
+                      </span>
+                      <button
+                        onClick={() => handleApprove(r.code)}
+                        disabled={busy}
+                        className={
+                          'bg-transparent border-none cursor-pointer btn-press ' +
+                          'text-body-md-semibold text-[var(--color-brand-default)] ' +
+                          'transition-opacity duration-fast ease-out ' +
+                          'hover:opacity-80 disabled:cursor-default disabled:opacity-60'
+                        }
+                      >Approve</button>
+                    </div>
+                  );
+                })}
+                {allowlist.map((e, idx) => {
+                  const label = e.identityKind === 'username'
+                    ? `@${e.identity}`
+                    : e.displayName
+                      ? `@${e.displayName}`
+                      : `id:${e.identity}`;
+                  const isLast = idx === allowlist.length - 1;
+                  return (
+                    <div
+                      key={`approved:${e.identityKind}:${e.identity}`}
+                      className={
+                        'bg-[var(--color-surface-canvas)] border border-[var(--color-border-subtle)] ' +
+                        'flex h-10 items-center justify-between px-4 w-full ' +
+                        (isLast ? '' : '-mb-px')
+                      }
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="status-dot-live w-[7px] h-[7px] rounded-full bg-[var(--color-brand-default)] flex-shrink-0" aria-hidden="true" />
+                        <span className="text-body-md text-text-primary truncate">{label}</span>
+                      </span>
+                      <button
+                        onClick={() => handleRevoke(e.identity)}
+                        aria-label={`Revoke ${label}`}
+                        title={`Revoke ${label}`}
+                        className={
+                          'inline-flex items-center justify-center w-[18px] h-[18px] ' +
+                          'bg-transparent border-none cursor-pointer ' +
+                          'text-text-secondary hover:text-[var(--color-error-default)] ' +
+                          'transition-colors duration-fast ease-out flex-shrink-0'
+                        }
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                          <path d="M1.5 1.5 L8.5 8.5 M8.5 1.5 L1.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          <Divider>
-            <span className="inline-flex items-center gap-1.5">
-              Authorized users
-              <span className="opacity-50">({allowlist.length})</span>
-            </span>
-          </Divider>
-          {allowlist.length > 0 && (
-            <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto pr-1">
-              {allowlist.map((e) => {
-                // Prefer the captured Telegram handle for id-kind entries;
-                // fall back to the raw `id:<n>` only when the handle is
-                // unknown (legacy rows approved before display_name landed).
-                const label = e.identityKind === 'username'
-                  ? `@${e.identity}`
-                  : e.displayName
-                    ? `@${e.displayName}`
-                    : `id:${e.identity}`;
-                return (
-                  <div
-                    key={`${e.identityKind}:${e.identity}`}
-                    className="flex items-center gap-2 px-2 py-1.5 bg-[rgba(255,255,255,0.02)] border border-[var(--color-border-default)] rounded-[4px] flex-shrink-0"
-                  >
-                    <span className="status-dot-live w-1.5 h-1.5 rounded-full bg-[var(--color-brand-default)] flex-shrink-0" aria-hidden="true" />
-                    <span className="text-body-sm text-[var(--color-text-primary)] truncate min-w-0 flex-1">{label}</span>
-                    <button
-                      onClick={() => handleRevoke(e.identity)}
-                      className="inline-flex items-center justify-center w-6 h-6 bg-transparent border-none text-[var(--color-text-secondary)] text-label-lg cursor-pointer transition-colors duration-fast ease-out hover:text-[var(--color-error-default)] focus-visible:text-[var(--color-error-default)] outline-none flex-shrink-0"
-                      aria-label={`Revoke ${label}`}
-                      title={`Revoke ${label}`}
-                    >×</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end mt-4">
+          <div className="flex items-center justify-end mt-2 w-full">
             <button
               onClick={handleDisconnect}
               disabled={busy}
-              className="bg-[var(--color-error-subtle)] border border-[rgba(239,68,68,0.4)] rounded-[4px] px-3 py-1.5 text-[var(--color-error-text)] text-body-sm cursor-pointer btn-press transition-colors duration-fast ease-out hover:border-[var(--color-error-default)] hover:bg-[var(--color-error-soft)] focus-visible:border-[var(--color-error-default)] focus-visible:bg-[var(--color-error-soft)] outline-none disabled:cursor-default disabled:opacity-60"
+              className={
+                'h-9 px-4 inline-flex items-center justify-center rounded-[4px] ' +
+                'bg-transparent border border-[var(--color-border-subtle)] ' +
+                'text-body-md-semibold text-[var(--color-error-text)] cursor-pointer btn-press ' +
+                'transition-colors duration-fast ease-out ' +
+                'hover:border-[var(--color-error-default)] hover:text-[var(--color-error-default)] ' +
+                'focus-visible:border-[var(--color-error-default)] ' +
+                'disabled:cursor-default disabled:opacity-60'
+              }
             >Disconnect</button>
           </div>
         </>

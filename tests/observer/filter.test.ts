@@ -37,8 +37,11 @@ describe("filterPassesLlm", () => {
     expect(filterPassesLlm([], snapshot(), [])).toBe(false);
   });
 
-  test("only pnl_snapshot + unchanged orders → skip (cost guard)", () => {
-    expect(filterPassesLlm([pnlEvent()], snapshot(), [])).toBe(false);
+  test("pnl_snapshot survived upstream floor → pass (BUG-0146)", () => {
+    // Snapshots that reach this filter have already cleared
+    // `filterPnlSnapshots` (Δprice% OR cooldown). They are valid wake reasons
+    // for the judge — the floor is load-bearing, this filter is not.
+    expect(filterPassesLlm([pnlEvent()], snapshot(), [])).toBe(true);
   });
 
   test("any non-snapshot event → pass", () => {
@@ -63,7 +66,7 @@ describe("filterPassesLlm", () => {
     expect(filterPassesLlm([], snapshot({ openOrderIds: ["o1"] }), [])).toBe(true);
   });
 
-  test("same open orders + pnl_snapshot only → skip", () => {
-    expect(filterPassesLlm([pnlEvent()], snapshot({ openOrderIds: ["o1"] }), ["o1"])).toBe(false);
+  test("same open orders + pnl_snapshot only → pass (BUG-0146)", () => {
+    expect(filterPassesLlm([pnlEvent()], snapshot({ openOrderIds: ["o1"] }), ["o1"])).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ const realUninstall = await import("../../src/commands/uninstall.js");
 mock.module("../../src/commands/uninstall.ts", () => ({
   ...realUninstall,
   SIGKILL_DELAY_MS: 0,
+  WIN_HANDLE_RELEASE_MS: 0,
 }));
 
 // Import SUT AFTER mock.module so the registered module is picked up.
@@ -19,6 +20,7 @@ const {
   removeBunPackage,
   stripPersistentPath,
   stripNpmrcBlock,
+  resolveGatewayPortForUninstall,
 } = await import("../../src/commands/uninstall.js");
 
 import type { UninstallDeps, SpawnResult } from "../../src/commands/uninstall.js";
@@ -65,6 +67,7 @@ function makeDeps(
     dataDir: "/tmp/fake-ghost",
     home: "/home/test",
     platform: "linux",
+    gatewayPort: 15401,
     isTTY: true,
     confirm: async () => true,
     existsSync: (p) => existsReturn.get(p) ?? true,
@@ -171,6 +174,27 @@ describe("runUninstall", () => {
     // Data removal still attempted.
     expect(h.rmCalls).toEqual(["/tmp/fake-ghost"]);
   });
+
+  test("kills foreground daemons BEFORE controller.uninstall (so purgeLogs doesn't EBUSY)", async () => {
+    const h = makeDeps({ status: "running" });
+    h.setExists("/tmp/fake-ghost", true);
+    const callOrder: string[] = [];
+    // Capture order: ps/powershell call (from stopForegroundGhostDaemons)
+    // must precede controller.uninstall().
+    const origSpawn = h.deps.spawn;
+    h.deps.spawn = ((cmd, args) => {
+      if (cmd === "ps" || cmd === "powershell") callOrder.push("findPids");
+      return origSpawn(cmd, args);
+    }) as UninstallDeps["spawn"];
+    h.deps.controller.uninstall = mock(async () => {
+      callOrder.push("controllerUninstall");
+      return { ok: true };
+    });
+    await runUninstall(h.deps);
+    expect(callOrder[0]).toBe("findPids");
+    expect(callOrder).toContain("controllerUninstall");
+    expect(callOrder.indexOf("findPids")).toBeLessThan(callOrder.indexOf("controllerUninstall"));
+  });
 });
 
 describe("stopForegroundGhostDaemons — POSIX", () => {
@@ -199,7 +223,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(0);
     expect(killSpy.mock.calls).toHaveLength(0);
@@ -217,7 +241,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(1);
     expect(killSpy.mock.calls).toEqual([
@@ -238,7 +262,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(1);
     expect(killSpy.mock.calls.map((c) => c[0])).toEqual([333, 333]);
@@ -256,7 +280,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 4242,
+      currentPid: 4242, gatewayPort: 15401,
     });
     expect(result.killed).toBe(1);
     expect(killSpy.mock.calls.map((c) => c[0])).not.toContain(4242);
@@ -275,7 +299,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(0);
   });
@@ -296,7 +320,7 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
       home,
       platform: "linux",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(1);   // still reported as "attempted"
   });
@@ -304,16 +328,6 @@ describe("stopForegroundGhostDaemons — POSIX", () => {
 
 describe("stopForegroundGhostDaemons — Windows", () => {
   const home = "C:\\Users\\testuser";
-
-  let killSpy: ReturnType<typeof spyOn<typeof process, "kill">>;
-
-  beforeEach(() => {
-    killSpy = spyOn(process, "kill").mockImplementation(() => true);
-  });
-
-  afterEach(() => {
-    killSpy.mockRestore();
-  });
 
   it("returns 0 killed when PowerShell reports no matches", async () => {
     const spawn = makeSpawnMock({
@@ -327,46 +341,80 @@ describe("stopForegroundGhostDaemons — Windows", () => {
       home,
       platform: "win32",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(0);
   });
 
-  it("parses pids from PowerShell stdout", async () => {
-    const spawn = makeSpawnMock({
-      "powershell -NoProfile -Command": {
-        exitCode: 0,
-        stdout: "111\r\n222\r\n",
-        stderr: "",
-      },
-    });
+  it("parses pids from PowerShell stdout and tree-kills via taskkill", async () => {
+    const taskkillCalls: string[][] = [];
+    const spawn: UninstallDeps["spawn"] = (cmd, args) => {
+      if (cmd === "taskkill") {
+        taskkillCalls.push(args);
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+      if (cmd === "powershell") {
+        return { exitCode: 0, stdout: "111\r\n222\r\n", stderr: "" };
+      }
+      throw new Error(`unexpected spawn: ${cmd} ${args.join(" ")}`);
+    };
     const result = await stopForegroundGhostDaemons({
       home,
       platform: "win32",
       spawn,
-      currentPid: 9999,
+      currentPid: 9999, gatewayPort: 15401,
     });
     expect(result.killed).toBe(2);
-    expect(killSpy.mock.calls.filter((c) => c[0] === 111)).toHaveLength(2);   // SIGTERM + SIGKILL
-    expect(killSpy.mock.calls.filter((c) => c[0] === 222)).toHaveLength(2);
+    expect(taskkillCalls).toEqual([
+      ["/F", "/T", "/PID", "111"],
+      ["/F", "/T", "/PID", "222"],
+    ]);
   });
 
   it("excludes current pid on Windows too", async () => {
-    const spawn = makeSpawnMock({
-      "powershell -NoProfile -Command": {
-        exitCode: 0,
-        stdout: "4242\r\n4243\r\n",
-        stderr: "",
-      },
-    });
+    const taskkillPids: string[] = [];
+    const spawn: UninstallDeps["spawn"] = (cmd, args) => {
+      if (cmd === "taskkill") {
+        taskkillPids.push(args[args.length - 1]!);
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+      if (cmd === "powershell") {
+        return { exitCode: 0, stdout: "4242\r\n4243\r\n", stderr: "" };
+      }
+      throw new Error(`unexpected spawn: ${cmd}`);
+    };
     const result = await stopForegroundGhostDaemons({
       home,
       platform: "win32",
       spawn,
-      currentPid: 4242,
+      currentPid: 4242, gatewayPort: 15401,
     });
     expect(result.killed).toBe(1);
-    expect(killSpy.mock.calls.map((c) => c[0])).not.toContain(4242);
+    expect(taskkillPids).toEqual(["4243"]);
+  });
+
+  it("dedupes pids returned twice by the PS script (port + cmdline match)", async () => {
+    const taskkillPids: string[] = [];
+    const spawn: UninstallDeps["spawn"] = (cmd, args) => {
+      if (cmd === "taskkill") {
+        taskkillPids.push(args[args.length - 1]!);
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+      if (cmd === "powershell") {
+        // Simulate the PowerShell HashSet emitting the same pid twice anyway
+        // (defence — our Set-based dedupe in JS should still collapse it).
+        return { exitCode: 0, stdout: "555\r\n555\r\n", stderr: "" };
+      }
+      throw new Error(`unexpected spawn: ${cmd}`);
+    };
+    const result = await stopForegroundGhostDaemons({
+      home,
+      platform: "win32",
+      spawn,
+      currentPid: 9999, gatewayPort: 15401,
+    });
+    expect(result.killed).toBe(1);
+    expect(taskkillPids).toEqual(["555"]);
   });
 });
 
@@ -399,7 +447,7 @@ describe("removeBunPackage", () => {
     };
     const result = await removeBunPackage({ packageName: "@hyperflow.fun/ghost", spawn });
     expect(result.ok).toBe(true);
-    expect(result.info).toMatch(/Removed @hyperflowdotfun\/ghost/);
+    expect(result.info).toMatch(/Removed @hyperflow\.fun\/ghost/);
     expect(calls).toContain("bun remove -g @hyperflow.fun/ghost");
   });
 
@@ -619,7 +667,7 @@ describe("runUninstall — integration", () => {
   it("runs full cleanup pipeline in correct order when everything is installed", async () => {
     const calls: string[] = [];
     const rcContent = `# GHOST-BEGIN\nexport PATH="/home/testuser/.bun/bin:$PATH"\n# GHOST-END\n`;
-    const npmrcContent = `# GHOST-NPMRC-BEGIN\n@hyperflowdotfun:registry=https://example.com/\n# GHOST-NPMRC-END\n`;
+    const npmrcContent = `# GHOST-NPMRC-BEGIN\n@hyperflow.fun:registry=https://example.com/\n# GHOST-NPMRC-END\n`;
     const fileTable: Record<string, string> = {
       "/home/testuser/.bashrc": rcContent,
       "/home/testuser/.npmrc": npmrcContent,
@@ -631,6 +679,7 @@ describe("runUninstall — integration", () => {
       dataDir: "/home/testuser/.ghost",
       home: "/home/testuser",
       platform: "linux",
+      gatewayPort: 15401,
       isTTY: true,
       confirm: async () => true,
       existsSync: (p) => p === "/home/testuser/.ghost" || p in fileTable,
@@ -671,6 +720,7 @@ describe("runUninstall — integration", () => {
       dataDir: "/home/testuser/.ghost",
       home: "/home/testuser",
       platform: "linux",
+      gatewayPort: 15401,
       isTTY: true,
       confirm: async () => true,
       existsSync: () => false,
@@ -716,7 +766,7 @@ describe("stripNpmrcBlock", () => {
   it("strips sentinel block, preserves surrounding entries", async () => {
     const npmrc = `registry=https://registry.npmjs.org/
 # GHOST-NPMRC-BEGIN (managed by ghost installer -- do not edit)
-@hyperflow:registry=https://registry.npmjs.org/
+@hyperflow.fun:registry=https://example.com/packages/npm/
 # GHOST-NPMRC-END
 loglevel=warn
 `;
@@ -731,7 +781,7 @@ loglevel=warn
 
   it("deletes .npmrc if emptied after strip", async () => {
     const npmrc = `# GHOST-NPMRC-BEGIN
-@hyperflow:registry=https://example.com/
+@hyperflow.fun:registry=https://example.com/
 # GHOST-NPMRC-END
 `;
     const fs = makeFsMock({ "/home/testuser/.npmrc": npmrc });
@@ -762,5 +812,61 @@ loglevel=warn
     const fs = makeFsMock({ "/home/testuser/.npmrc": npmrc });
     const result = await stripNpmrcBlock({ home, ...fs.deps });
     expect(result.changed).toBe(false);
+  });
+});
+
+import { mkdtempSync, writeFileSync as fsWriteFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+describe("resolveGatewayPortForUninstall", () => {
+  // Use GHOST_CONFIG_DIR override so getConfigPath() lands inside a temp dir
+  // without touching the real ~/.ghost. Reset both env vars per test.
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "ghost-port-test-"));
+    process.env["GHOST_CONFIG_DIR"] = tmpDir;
+    delete process.env["GHOST_GATEWAY_PORT"];
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    delete process.env["GHOST_CONFIG_DIR"];
+    delete process.env["GHOST_GATEWAY_PORT"];
+  });
+
+  it("returns 15401 default when no config and no env", () => {
+    expect(resolveGatewayPortForUninstall()).toBe(15401);
+  });
+
+  it("reads gateway.port from config.json", () => {
+    fsWriteFileSync(
+      join(tmpDir, "config.json"),
+      JSON.stringify({ gateway: { port: 9999 } }),
+    );
+    expect(resolveGatewayPortForUninstall()).toBe(9999);
+  });
+
+  it("GHOST_GATEWAY_PORT env overrides config.json", () => {
+    fsWriteFileSync(
+      join(tmpDir, "config.json"),
+      JSON.stringify({ gateway: { port: 9999 } }),
+    );
+    process.env["GHOST_GATEWAY_PORT"] = "8888";
+    expect(resolveGatewayPortForUninstall()).toBe(8888);
+  });
+
+  it("falls through to default on corrupt config.json", () => {
+    fsWriteFileSync(join(tmpDir, "config.json"), "{ not json");
+    expect(resolveGatewayPortForUninstall()).toBe(15401);
+  });
+
+  it("rejects out-of-range port and falls through to default", () => {
+    fsWriteFileSync(
+      join(tmpDir, "config.json"),
+      JSON.stringify({ gateway: { port: 99999 } }),
+    );
+    expect(resolveGatewayPortForUninstall()).toBe(15401);
   });
 });

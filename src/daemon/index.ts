@@ -23,7 +23,11 @@ import { getConfigPath } from "../config/index.js";
 import { createCronDeliveryHandler } from "../scheduler/delivery.js";
 import { printDaemonStartupBanner } from "../helpers/banner.js";
 import { BackgroundJobRunner, registerDefaultJobs } from "./jobs/index.js";
-import { installShutdownHandlers } from "./shutdown.js";
+import {
+  installCrashHandlers,
+  installShutdownHandlers,
+  setCrashCleanup,
+} from "./shutdown.js";
 import { telegramPlugin } from "../channels/telegram/plugin.js";
 import { ChannelId } from "../channels/types.js";
 import { ChannelEvents } from "../events/pairing-events.js";
@@ -57,7 +61,7 @@ async function guardAgainstRunningService(logger: Logger): Promise<void> {
   const action = await select({
     message: "Ghost is already running as a background service",
     options: [
-      { value: "logs",    label: "View logs (journalctl -f / tail -f)" },
+      { value: "logs",    label: "View logs (ghost logs -f)" },
       { value: "restart", label: "Restart service" },
       { value: "stop",    label: "Stop service and start foreground daemon" },
       { value: "abort",   label: "Exit" },
@@ -68,8 +72,8 @@ async function guardAgainstRunningService(logger: Logger): Promise<void> {
   }
 
   if (action === "logs") {
-    const { streamServiceLogs } = await import("../services/os/log-stream.js");
-    await streamServiceLogs();
+    const { runLogs } = await import("../commands/logs/index.js");
+    await runLogs({ follow: true, json: false, plain: false, noColor: false });
     process.exit(0);
   }
 
@@ -79,8 +83,8 @@ async function guardAgainstRunningService(logger: Logger): Promise<void> {
     log.info("Restarting Ghost service...");
     await controller.restart();
     log.success("Ghost service restarted. Streaming logs...\n");
-    const { streamServiceLogs } = await import("../services/os/log-stream.js");
-    await streamServiceLogs();
+    const { runLogs } = await import("../commands/logs/index.js");
+    await runLogs({ follow: true, json: false, plain: false, noColor: false });
     process.exit(0);
   }
 
@@ -135,6 +139,10 @@ export function broadcastEventToWeb(
 
 export async function startDaemon(options: DaemonOptions): Promise<void> {
   const logger = options.logger;
+
+  // 0. Install crash handlers BEFORE any subsystem boot so a throw in a
+  //    constructor or top-level await is still logged and exits non-zero.
+  installCrashHandlers(logger);
 
   // 1. Guard against duplicate instances (TTY-only OS service check).
   await guardAgainstRunningService(logger);
@@ -274,6 +282,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     tools,
     channelManager: runtime.channelManager,
     pairingStore: runtime.pairingStore,
+    sessionManager: runtime.sessionManager,
     logger: logger.child({ module: "cron-delivery" }),
   }));
 
@@ -318,11 +327,14 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   const gatewayUrl = `http://${config.gateway.host}:${config.gateway.port}`;
   logger.info({ module: "daemon" }, `Gateway listening on ${gatewayUrl}`);
 
-  // 13. Install signal handlers (SIGINT + SIGTERM → clean shutdown).
-  installShutdownHandlers({
+  // 13. Install signal handlers (SIGINT + SIGTERM → clean shutdown) and
+  //     hand the same cleanup body to the crash handler so unhandled errors
+  //     drain the DB / channels before exiting non-zero for supervisor restart.
+  const cleanup = installShutdownHandlers({
     runtime,
     gatewayHandle: { stopPriceFeed, app },
     unsubscribeBus,
     stopBackground: () => runner.stop(),
   });
+  setCrashCleanup(cleanup);
 }

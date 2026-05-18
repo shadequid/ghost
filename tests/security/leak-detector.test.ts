@@ -39,21 +39,28 @@ describe("LeakDetector — clean input", () => {
 // ---------------------------------------------------------------------------
 
 describe("LeakDetector — Stripe keys", () => {
+  // Stripe-shaped fixtures are split into prefix + body so GitHub's secret
+  // scanner doesn't match them as real keys at push time. The detector still
+  // sees the concatenated string at runtime.
+  const SK_LIVE_PREFIX = "sk" + "_live";
+  const SK_TEST_PREFIX = "sk" + "_test";
+  const PK_LIVE_PREFIX = "pk" + "_live";
+
   test("detects sk_live key", () => {
-    const input = "Payment config: sk_" + "live_" + "A".repeat(24);
+    const input = `Payment config: ${SK_LIVE_PREFIX}_ABCDEFGHIJKLMNOPQRSTUVWX`;
     const result = expectDetected(input, "stripe");
-    expect(result.redacted).not.toContain("sk_live_");
+    expect(result.redacted).not.toContain(`${SK_LIVE_PREFIX}_`);
     expect(result.redacted).toContain("[REDACTED]");
   });
 
   test("detects sk_test key", () => {
-    const input = "Key: sk_" + "test_" + "A".repeat(24);
+    const input = `Key: ${SK_TEST_PREFIX}_ABCDEFGHIJKLMNOPQRSTUVWXYZab`;
     const result = expectDetected(input, "stripe");
     expect(result.redacted).toContain("[REDACTED]");
   });
 
   test("detects pk_live key", () => {
-    const input = "pub: pk_" + "live_" + "A".repeat(24);
+    const input = `pub: ${PK_LIVE_PREFIX}_ABCDEFGHIJKLMNOPQRSTUVWX`;
     const result = expectDetected(input, "stripe");
     expect(result.redacted).toContain("[REDACTED]");
   });
@@ -258,9 +265,10 @@ describe("LeakDetector — Generic secrets", () => {
 
 describe("LeakDetector — Multiple patterns", () => {
   test("detects multiple secrets in one string", () => {
+    const stripePrefix = "sk" + "_live";
     const input = [
       "openai_key=sk-" + "A".repeat(48),
-      "stripe: sk_" + "live_" + "B".repeat(24),
+      `stripe: ${stripePrefix}_ABCDEFGHIJKLMNOPQRSTUVWX`,
     ].join(" AND ");
     const result = detector.scrub(input);
     expect(result.clean).toBe(false);
@@ -268,7 +276,7 @@ describe("LeakDetector — Multiple patterns", () => {
     expect(result.patterns).toContain("openai");
     expect(result.patterns).toContain("stripe");
     expect(result.redacted).not.toContain("sk-" + "A".repeat(48));
-    expect(result.redacted).not.toContain("sk_live_");
+    expect(result.redacted).not.toContain(`${stripePrefix}_`);
   });
 
   test("redacted string contains no original secret values", () => {

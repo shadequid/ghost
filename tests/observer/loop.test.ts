@@ -169,8 +169,13 @@ describe("ObserverLoop — filter integration", () => {
   let db: Database;
   beforeEach(async () => { db = await freshDb(); });
 
-  test("idle position with only pnl_snapshot events does NOT call the judge", async () => {
-    // First tick seeds the snapshot (no events, no judge call).
+  test("idle position: first tick wakes judge, subsequent identical ticks are gated", async () => {
+    // Post-BUG-0146 semantics: a lone pnl_snapshot CAN wake the judge —
+    // the first time it's seen. After that, the per-position floor
+    // (stamped on the judge call regardless of fire/silent verdict)
+    // prevents re-waking until Δprice% > 0.5% or 60min elapses. So with
+    // an unchanging price across both ticks the judge is invoked exactly
+    // once, not zero.
     const { loop, runnerCalls } = buildLoop(db, {
       client: stubClient({
         positions: [{
@@ -189,10 +194,10 @@ describe("ObserverLoop — filter integration", () => {
       }),
     });
 
-    await loop.tick(); // seeds positions in state-store
-    await loop.tick(); // diff produces only pnl_snapshot → filter skips
+    await loop.tick(); // first sighting — judge wakes once (no prior fire)
+    await loop.tick(); // same price, elapsed ≈ 0 → floor drops snapshot
 
-    expect(runnerCalls.length).toBe(0);
+    expect(runnerCalls.length).toBe(1);
   });
 });
 
@@ -363,7 +368,8 @@ describe("ObserverLoop — pnl_snapshot dedup across ticks", () => {
     expect(after1?.lastFiredAtMs).not.toBeNull();
 
     // Tick 2 & 3: alert is gone (markFired). Only pnl_snapshot remains;
-    // gate drops it, filterPassesLlm short-circuits, judge NOT called.
+    // gate drops it (Δprice% ≈ 0, elapsed ≈ 0), gatedEvents is empty,
+    // filterPassesLlm returns false, judge NOT called.
     await loop.tick();
     await loop.tick();
     expect(runnerCalls.length).toBe(1);
@@ -420,23 +426,93 @@ describe("ObserverLoop — pnl_snapshot dedup across ticks", () => {
       await loop.tick();
       expect(runnerCalls.length).toBe(1);
 
-      // Ticks 2 & 3 within the same cooldown window. Δpnl% and Δprice% are
-      // both below thresholds AND elapsed < MIN_COOLDOWN_MS → gate drops
-      // the snapshot, filterPassesLlm short-circuits, judge silent.
+      // Ticks 2 & 3 within the same cooldown window. Δprice% < 0.5% AND
+      // elapsed < MIN_COOLDOWN_MS → gate drops the snapshot,
+      // filterPassesLlm short-circuits on the empty events list, judge silent.
       currentMs = baseMs + 10 * 60 * 1000; // +10 min
       await loop.tick();
       currentMs = baseMs + 30 * 60 * 1000; // +30 min
       await loop.tick();
       expect(runnerCalls.length).toBe(1);
 
-      // Tick 4: advance past the 60-min cooldown AND arm a second price-
-      // alert crossing (mirrors the bug evidence — both flagged messages
-      // 33 min apart rode in on their own price-target crossings). With
-      // Δpnl% and Δprice% still below thresholds, the cooldown axis is
-      // the one that re-opens the pnl_snapshot gate.
+      // Tick 4: advance past the 60-min cooldown. With Δprice% still under
+      // the floor, the cooldown axis is the one that re-opens the
+      // pnl_snapshot gate. A second price-alert crossing is also armed —
+      // belt for filterPassesLlm; the cooldown-expired pnl_snapshot would
+      // wake the judge on its own under BUG-0146.
       currentMs = baseMs + MIN_COOLDOWN_MS + 1_000; // +60 min + 1 s
       alertRules.add("ETH", "below", 2_219);
       priceCache.set("ETH", 2_218.6);
+      await loop.tick();
+      expect(runnerCalls.length).toBe(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  test("BUG-0146: lone pnl_snapshot wakes judge after price moves past floor", async () => {
+    // Reproduces the BUG-0146 case: user opens a position, no price alert
+    // and no order activity for hours, but price moves materially in their
+    // favor. Pre-BUG-0146 the judge would NEVER fire because
+    // `filterPassesLlm` dropped pnl_snapshot-only buffers wholesale. Now
+    // a snapshot that survives the per-position price/time floor wakes the
+    // judge on its own.
+    //
+    // Clock injection because the loop reads `Date.now()` directly.
+    const baseMs = 1_730_000_000_000;
+    let currentMs = baseMs;
+    const nowSpy = spyOn(Date, "now").mockImplementation(() => currentMs);
+
+    try {
+      // Mutable position so we can advance markPrice between ticks.
+      const position: Position = {
+        symbol: "APT",
+        side: "short",
+        size: 1_000,
+        entryPrice: 0.9642,
+        markPrice: 0.9642, // tick 1: at entry
+        liquidationPrice: 1.52,
+        unrealizedPnl: 0,
+        unrealizedPnlPct: 0,
+        leverage: 5,
+        marginMode: "cross",
+        margin: 192.84,
+      };
+      const client = stubClient({ positions: [position] });
+
+      const { loop, runnerCalls } = buildLoop(db, {
+        client,
+        runnerResponse: JSON.stringify({
+          decision: "fire",
+          primaryEventType: "pnl_snapshot",
+          primarySymbol: "APT",
+          body: "APT short up — running well.",
+          notify: false,
+          reason: "test",
+        }),
+      });
+
+      // Tick 1: first sighting — no prior fire, snapshot passes through
+      // both filters, judge fires and stamps lastFired* at baseMs.
+      await loop.tick();
+      expect(runnerCalls.length).toBe(1);
+
+      // Tick 2: 10 min later, price moved 0.1% (under 0.5% floor) →
+      // snapshot dropped, judge silent.
+      currentMs = baseMs + 10 * 60 * 1000;
+      position.markPrice = 0.9633;
+      position.unrealizedPnl = 0.9;
+      await loop.tick();
+      expect(runnerCalls.length).toBe(1);
+
+      // Tick 3: 30 min later, price moved 2.16% (well past 0.5% floor)
+      // even though cooldown hasn't elapsed. Pre-fix: dropped wholesale by
+      // filterPassesLlm. Post-fix: snapshot survives both filters and
+      // wakes the judge — even with no alerts and no order activity.
+      currentMs = baseMs + 30 * 60 * 1000;
+      position.markPrice = 0.9434;
+      position.unrealizedPnl = 20.8;
+      position.unrealizedPnlPct = 10.8;
       await loop.tick();
       expect(runnerCalls.length).toBe(2);
     } finally {

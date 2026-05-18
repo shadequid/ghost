@@ -3,8 +3,8 @@ import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
 import { SystemMenuDropdown } from '@/components/layout/SystemMenuDropdown';
 import { TelegramSetupModal } from '@/components/TelegramSetupModal';
 import { useGateway } from '@/hooks/useGateway';
-import brandIconDisconnected from '@/assets/topbar-brand-disconnected.svg';
 import telegramConnectedBadge from '@/assets/telegram-connected-badge.svg';
+import telegramSendIcon from '@/assets/telegram-send-icon.svg';
 import unlimitedBadge from '@/assets/topbar-status-unlimited.svg';
 
 /**
@@ -22,26 +22,52 @@ export function TopBar() {
   return (
     <header className="relative z-20 flex items-center justify-end px-6 py-4 h-[53px] flex-shrink-0 bg-[var(--color-surface-canvas)]">
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setTelegramOpen(true)}
-          className="relative w-8 h-8 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-border-default)] rounded-full"
-          aria-label={telegramConnected ? 'Telegram connected' : 'Connect Telegram'}
-          title={telegramConnected ? 'Telegram connected' : 'Connect Telegram'}
-        >
-          <img
-            src={telegramConnected ? telegramConnectedBadge : brandIconDisconnected}
-            alt=""
-            className="block w-8 h-8"
-          />
-          {telegramConnected ? (
+        {telegramConnected ? (
+          <button
+            type="button"
+            onClick={() => setTelegramOpen(true)}
+            className="relative w-8 h-8 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-border-default)] rounded-full"
+            aria-label="Telegram connected"
+            title="Telegram connected"
+          >
+            <img src={telegramConnectedBadge} alt="" className="block w-8 h-8" />
             <img
               src={unlimitedBadge}
               alt=""
               className="absolute top-[0.5px] left-[22px] w-[13px] h-[13px]"
             />
-          ) : null}
-        </button>
+          </button>
+        ) : (
+          // Connect-Telegram pill — Figma node 317:2848. Dashed border + send
+          // glyph signal "not yet wired up; tap to connect". Solid-border /
+          // icon-only variant is reserved for the connected state above.
+          <button
+            type="button"
+            onClick={() => setTelegramOpen(true)}
+            className={
+              'h-8 inline-flex items-center justify-center gap-2 px-3 py-[5px] ' +
+              'rounded-[40px] bg-[var(--color-surface-base)] ' +
+              'border border-dashed border-[var(--color-border-strong)] ' +
+              'text-label-md text-[var(--color-text-secondary)] ' +
+              'transition-colors duration-fast ease-out cursor-pointer btn-press ' +
+              'hover:text-[var(--color-text-primary)] hover:border-[var(--color-brand-default)] ' +
+              'focus-visible:text-[var(--color-text-primary)]'
+            }
+            aria-label="Connect Telegram"
+            title="Connect Telegram"
+          >
+            <span>Connect</span>
+            <img
+              src={telegramSendIcon}
+              alt=""
+              aria-hidden="true"
+              width={16}
+              height={12}
+              className="block"
+            />
+
+          </button>
+        )}
 
         <NotificationDropdown />
 

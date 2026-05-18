@@ -2,6 +2,9 @@ import { existsSync as fsExistsSync, readFileSync, writeFileSync, unlinkSync, rm
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { ServiceController } from "../services/os/controller.js";
+import { DEFAULT_GATEWAY_PORT } from "../config/schema.js";
+import { getConfigPath } from "../config/paths.js";
+import { loadConfig } from "../config/loader.js";
 
 export interface SpawnResult {
   exitCode: number;
@@ -17,6 +20,11 @@ export interface UninstallDeps {
   home: string;
   /** Platform discriminator (injectable for tests). */
   platform: NodeJS.Platform;
+  /**
+   * Resolved gateway port for daemon detection. Caller resolves from
+   * config.json / GHOST_GATEWAY_PORT env / DEFAULT_GATEWAY_PORT.
+   */
+  gatewayPort: number;
   isTTY: boolean;
   confirm: () => Promise<boolean>;
   existsSync: (path: string) => boolean;
@@ -43,7 +51,29 @@ export async function runUninstall(deps: UninstallDeps): Promise<void> {
   let failures = 0;
   let anyProgress = false;
 
-  // 1. Service teardown (OS-managed service only — launchers already handled by adapter).
+  // 1. Kill foreground daemons FIRST — they hold ~/.ghost/* file handles
+  //    (sqlite WAL, session jsonl, etc.) which would make the service
+  //    controller's `purgeLogs` fail with EBUSY on Windows, and `rmSync`
+  //    fail later for the whole dataDir. Order matters: stop everything
+  //    that could hold the directory, THEN tear down.
+  try {
+    const r = await stopForegroundGhostDaemons({
+      home: deps.home,
+      platform: deps.platform,
+      spawn: deps.spawn,
+      currentPid: process.pid,
+      gatewayPort: deps.gatewayPort,
+    });
+    if (r.killed > 0) {
+      deps.log(`✓ Stopped ${r.killed} foreground Ghost daemon process${r.killed === 1 ? "" : "es"}`);
+      anyProgress = true;
+    }
+  } catch (e) {
+    deps.err(`Failed to stop foreground daemons: ${e instanceof Error ? e.message : String(e)}`);
+    failures++;
+  }
+
+  // 2. Service teardown (OS-managed service only — launchers already handled by adapter).
   if (status !== "not-installed") {
     try {
       const r = await deps.controller.uninstall({ purgeLogs: true });
@@ -58,24 +88,6 @@ export async function runUninstall(deps: UninstallDeps): Promise<void> {
       deps.err(`Failed to remove service: ${e instanceof Error ? e.message : String(e)}`);
       failures++;
     }
-  }
-
-  // 2. Kill foreground daemons — MUST precede rmSync(dataDir) so open fds
-  //    don't cause EACCES on Windows or silent unlink of open SQLite on POSIX.
-  try {
-    const r = await stopForegroundGhostDaemons({
-      home: deps.home,
-      platform: deps.platform,
-      spawn: deps.spawn,
-      currentPid: process.pid,
-    });
-    if (r.killed > 0) {
-      deps.log(`✓ Stopped ${r.killed} foreground Ghost daemon process${r.killed === 1 ? "" : "es"}`);
-      anyProgress = true;
-    }
-  } catch (e) {
-    deps.err(`Failed to stop foreground daemons: ${e instanceof Error ? e.message : String(e)}`);
-    failures++;
   }
 
   // 3. Remove data directory.
@@ -174,12 +186,27 @@ export async function runUninstall(deps: UninstallDeps): Promise<void> {
  */
 export let SIGKILL_DELAY_MS = 1000;
 
+/**
+ * Delay after the final kill on Windows so the OS releases file handles
+ * (sqlite WAL, ghost.log) before the caller's `rmSync`. Without this, the
+ * unlink races TerminateProcess and fails with EBUSY even though the
+ * process is already gone. POSIX releases handles synchronously, so this
+ * is Windows-only.
+ */
+export let WIN_HANDLE_RELEASE_MS = 500;
+
 export interface StopDaemonsDeps {
   home: string;
   platform: NodeJS.Platform;
   spawn: UninstallDeps["spawn"];
   /** Current process pid — must be excluded from the kill list so we don't self-terminate. */
   currentPid: number;
+  /**
+   * Ghost gateway port — used for port-owner-based daemon detection on
+   * Windows (defence-in-depth against cmdline-substring matcher misses).
+   * Caller resolves it from config.json / env / DEFAULT_GATEWAY_PORT.
+   */
+  gatewayPort: number;
 }
 
 export interface StopDaemonsResult {
@@ -199,8 +226,8 @@ export interface StopDaemonsResult {
  *    price of not reinventing a narrower matcher that could miss real daemons.
  * 2. Kill errors are silently swallowed — mirrors `kill $pids 2>/dev/null || true`.
  *    In practice the most common error is ESRCH (process already exited); EPERM
- *    would only surface under cross-user setups that this uninstaller is not
- *    expected to handle.
+ *    would only surface under cross-user setups that `install.sh --uninstall`
+ *    also doesn't handle.
  */
 export async function stopForegroundGhostDaemons(deps: StopDaemonsDeps): Promise<StopDaemonsResult> {
   const pids = deps.platform === "win32"
@@ -209,6 +236,22 @@ export async function stopForegroundGhostDaemons(deps: StopDaemonsDeps): Promise
 
   if (pids.length === 0) return { killed: 0 };
 
+  if (deps.platform === "win32") {
+    // taskkill /T tree-kills the process AND every descendant. Needed because
+    // Bun's --watch mode spawns a child for each restart and only the parent
+    // is in `pids`; process.kill on the parent leaves the child holding
+    // ~/.ghost/* file handles. /F forces termination (TerminateProcess).
+    for (const pid of pids) {
+      deps.spawn("taskkill", ["/F", "/T", "/PID", String(pid)]);
+    }
+    // TerminateProcess returns before the OS releases the dead process's
+    // file handles. A trailing sleep gives the kernel time to close them
+    // so the caller's rmSync doesn't race into EBUSY.
+    await Bun.sleep(WIN_HANDLE_RELEASE_MS);
+    return { killed: pids.length };
+  }
+
+  // POSIX: SIGTERM, wait, then SIGKILL the survivors.
   for (const pid of pids) {
     try { process.kill(pid, "SIGTERM"); } catch { /* already dead or not ours — parity w/ shell kill */ }
   }
@@ -239,25 +282,29 @@ function findGhostDaemonPidsPosix(deps: StopDaemonsDeps): number[] {
 }
 
 function findGhostDaemonPidsWindows(deps: StopDaemonsDeps): number[] {
-  // PowerShell inline script — enumerate processes whose CommandLine mentions
-  // the two canonical Ghost paths, emit pids one per line. `-NoProfile` skips
-  // user profile load so the script is deterministic.
+  // PowerShell unified script — union of cmdline matches AND port owners.
+  // Catches cases the cmdline-substring matcher misses — most importantly
+  // `bun --watch src/index.ts daemon` invocations from a source checkout
+  // whose cwd is not `~/.ghost` and whose argv0 is not `~/.bun/bin/ghost`.
+  // Port number is injected at call time (resolved from config.json / env /
+  // DEFAULT_GATEWAY_PORT) so non-default ports still get caught.
   const script = [
-    "Get-CimInstance Win32_Process |",
-    "Where-Object { $_.CommandLine -match '\\\\.bun\\\\bin\\\\ghost|\\\\.ghost\\\\' } |",
-    "Select-Object -ExpandProperty ProcessId",
+    "$ids = New-Object 'System.Collections.Generic.HashSet[int]';",
+    `try { Get-NetTCPConnection -LocalPort ${deps.gatewayPort} -ErrorAction SilentlyContinue | ForEach-Object { [void]$ids.Add([int]$_.OwningProcess) } } catch {};`,
+    "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match '\\\\.bun\\\\bin\\\\ghost|\\\\.ghost\\\\' } | ForEach-Object { [void]$ids.Add([int]$_.ProcessId) };",
+    "$ids",
   ].join(" ");
   const result = deps.spawn("powershell", ["-NoProfile", "-Command", script]);
   if (result.exitCode !== 0) return [];
-  const pids: number[] = [];
+  const pids = new Set<number>();
   for (const raw of result.stdout.split(/\r?\n/)) {
     const trimmed = raw.trim();
     if (!trimmed) continue;
     const pid = parseInt(trimmed, 10);
     if (!Number.isFinite(pid) || pid === deps.currentPid) continue;
-    pids.push(pid);
+    pids.add(pid);
   }
-  return pids;
+  return [...pids];
 }
 
 // ---------- Helper: removeBunPackage ----------
@@ -364,7 +411,7 @@ function stripPosixShellRcBlocks(deps: StripPersistentPathDeps): StripPathResult
       continue;
     }
 
-    // Verification pass — the installer is expected to keep this invariant.
+    // Verification pass (mirrors install.sh invariant).
     const verify = deps.readFile(rcPath);
     if (verify.includes(GHOST_RC_BEGIN) || verify.includes(LEGACY_RC_MARKER) ||
         verify.includes(`${deps.home}/.bun/bin:$PATH`)) {
@@ -379,7 +426,7 @@ function stripWindowsUserPath(deps: StripPersistentPathDeps): StripPathResult {
   const bunBin = `${deps.home}\\.bun\\bin`;
   // Inline PowerShell — reads HKCU\Environment\Path, removes the bunBin entry
   // (exact match, case-insensitive comparison), writes back. Symmetric with
-  // how the installer writes the entry during install.
+  // how install.ps1 writes the entry during install.
   const jsonBun = JSON.stringify(bunBin);   // safely quoted for PS
   const script = [
     `$bunBin = ${jsonBun}`,
@@ -440,6 +487,21 @@ export async function stripNpmrcBlock(deps: StripNpmrcDeps): Promise<StripNpmrcR
   return { changed: true, deleted: false };
 }
 
+/**
+ * Resolve the gateway port for daemon detection. Reuses loadConfig() so
+ * env overrides, schema validation, and migrations all apply identically
+ * to the runtime daemon. Any failure (missing config, parse error, etc.)
+ * falls through to the schema default — uninstall must work even if the
+ * config is broken or absent.
+ */
+export function resolveGatewayPortForUninstall(): number {
+  try {
+    return loadConfig(getConfigPath()).gateway.port;
+  } catch {
+    return DEFAULT_GATEWAY_PORT;
+  }
+}
+
 export async function runUninstallCli(): Promise<void> {
   const { resolveServiceController } = await import("../services/os/controller.js");
   const { createRootLogger } = await import("../logger.js");
@@ -448,6 +510,7 @@ export async function runUninstallCli(): Promise<void> {
   const controller = resolveServiceController(cliLogger.child({ module: "service" }));
   const home = homedir();
   const dataDir = join(home, ".ghost");
+  const gatewayPort = resolveGatewayPortForUninstall();
 
   // Print the pre-confirm summary. Probe status so the summary only lists
   // items that actually exist.
@@ -467,6 +530,7 @@ export async function runUninstallCli(): Promise<void> {
     dataDir,
     home,
     platform: process.platform,
+    gatewayPort,
     isTTY: Boolean(process.stdin.isTTY),
     confirm: async () => {
       const r = await confirm({
@@ -479,7 +543,10 @@ export async function runUninstallCli(): Promise<void> {
     readFile: (p) => readFileSync(p, "utf8"),
     writeFile: (p, content) => writeFileSync(p, content, "utf8"),
     unlink: (p) => unlinkSync(p),
-    rmSync: (p) => fsRmSync(p, { recursive: true, force: true }),
+    // Retry on Windows EBUSY: sqlite WAL / cwd locks / pino log handles
+    // sometimes survive a few hundred ms after the holding process exits.
+    // fs.rmSync's native retry loop is more reliable than a single attempt.
+    rmSync: (p) => fsRmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
     spawn: (cmd, args) => {
       const r = Bun.spawnSync([cmd, ...args], { stdout: "pipe", stderr: "pipe" });
       return {

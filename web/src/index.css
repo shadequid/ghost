@@ -2,37 +2,77 @@
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
-/* SF Pro Display — self-hosted via vite asset pipeline (.otf files in
-   src/assets/fonts/sf-pro-display/ are bundled + fingerprinted by vite).
-   4 weights shipped: 400 Regular, 500 Medium, 600 Semibold, 700 Bold —
-   covers every weight Tailwind utilities request in this app. */
+/* Rethink Sans — self-hosted via vite asset pipeline (.woff2 files in
+   src/assets/fonts/rethink-sans/ are bundled + fingerprinted by vite).
+   Figma 841:8863 specifies "SVN-Rethink Sans" — the upstream Google Font
+   already covers the Latin-Extended + Vietnamese ranges (U+0100-02BA and
+   U+1EF2-1EFF) used by Vietnamese diacritics, so we ship the upstream
+   build rather than the SVN- repack. Two woff2 files (latin + latin-ext)
+   cover all 4 weights — Google's variable build reuses the same payload
+   per weight via unicode-range partitioning. */
 @font-face {
-  font-family: "SF Pro Display";
+  font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Regular.otf") format("opentype");
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "SF Pro Display";
+  font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Medium.otf") format("opentype");
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "SF Pro Display";
+  font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Semibold.otf") format("opentype");
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "SF Pro Display";
+  font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("./assets/fonts/sf-pro-display/SF-Pro-Display-Bold.otf") format("opentype");
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @theme {
@@ -201,11 +241,10 @@
      avoid silent utility shadowing (per
      ~/.claude/skills/tailwind-v4-theme-shadows-defaults). */
   --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
-  /* Sans stack — SF Pro Display self-hosted via @font-face above (.otf
-     bundled by vite). Named "SF Pro" / native -apple-system kept as
-     fallback for OS-installed SF Pro; system-ui / Helvetica / Arial
-     cover the edge case where the .otf failed to load. */
-  --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
+  /* Sans stack — Rethink Sans (Figma 841:8863) self-hosted via @font-face
+     above (.woff2 bundled by vite). Falls back to the prior SF Pro stack
+     when the woff2 fails to load, then to system fonts. */
+  --font-sans: "Rethink Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
 
   /* ── Figma "AgentGhost" dark palette · 35 tokens · brand #3BF7BF ──
      Source: figma.com/design/maLdi9FQS11WDshl3IRfQu (node 12:2).
@@ -936,7 +975,9 @@ select:focus-visible {
 
 /* ── Chat Markdown ── */
 .chat-md {
-  font-size: var(--text-body-md);
+  /* 15px — sits between body-md (14) and body-lg (16); matches the inline
+     `text-[15px]` on the surrounding chat bubbles. */
+  font-size: 15px;
   line-height: 1.5;
   font-family: var(--font-sans);
   /* Streamdown CSS variable overrides — aligned to Figma AgentGhost
