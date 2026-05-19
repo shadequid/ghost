@@ -138,13 +138,13 @@ export default function AgentChat() {
       {!pendingConfirm && (
         <ChatInput
           onSend={chat.handleSend}
-          disabled={!chat.connected || chat.isBusy}
+          disabled={!chat.connected}
           placeholder={
-            !chat.connected ? 'Connecting…'
-            : chat.thinkingPhase === 'fetching' ? 'Ghost is fetching data…'
-            : chat.thinkingPhase === 'analyzing' ? 'Ghost is analyzing…'
-            : chat.isBusy ? 'Ghost is thinking…'
-            : idlePlaceholder
+            !chat.connected
+              ? 'Connecting…'
+              : chat.messages.length === 0
+                ? idlePlaceholder
+                : 'Write a message'
           }
           isBusy={chat.isBusy}
           onAbort={chat.handleAbort}

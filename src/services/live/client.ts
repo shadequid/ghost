@@ -2,22 +2,25 @@
  * Hyperliquid API client — read + write endpoints.
  */
 
-import { ExchangeClient, HttpTransport } from "@nktkas/hyperliquid";
+import { ExchangeClient, HttpTransport, WebSocketTransport, SubscriptionClient } from "@nktkas/hyperliquid";
+import type { ISubscription } from "@nktkas/hyperliquid";
 import { privateKeyToAccount } from "viem/accounts";
 import type {
   Balance, Position, OpenOrder, Fill, Ticker, Kline, Orderbook,
   PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult,
   OrderRecord,
 } from "../interfaces/trading-types.js";
+import type { ITradingSubscription } from "../interfaces/trading-client.js";
 import { fetchBinanceKlines } from "../binance-klines.js";
-import type { ITradingClient } from "../interfaces/trading-client.js";
+import type { ITradingClient, AllDexsAssetCtxsEvent } from "../interfaces/trading-client.js";
 import type { Logger } from "pino";
 import { generateGhostCloid } from "../../helpers/cloid.js";
+import { InfoCache, runWithConcurrency } from "./info-cache.js";
 
 const MAINNET_URL = "https://api.hyperliquid.xyz";
 const TESTNET_URL = "https://api.hyperliquid-testnet.xyz";
 
-function mapFill(f: any): Fill {
+function mapFill(f: RawFill): Fill {
   return {
     tradeId: String(f.tid),
     symbol: f.coin,
@@ -105,6 +108,96 @@ function parseDex(symbol: string): { dex: string | null; name: string } {
 }
 
 /**
+ * Raw HL wire types — narrowed once at the WS listener boundary.
+ * Defined alongside the mapFromRaw helpers that consume them.
+ */
+interface RawClearinghouse {
+  marginSummary?: { accountValue?: string; totalMarginUsed?: string };
+  assetPositions?: Array<{
+    position: {
+      coin: string;
+      szi: string;
+      entryPx: string;
+      positionValue?: string;
+      unrealizedPnl: string;
+      returnOnEquity?: string;
+      leverage?: { value?: string; type?: string };
+      marginUsed: string;
+      liquidationPx?: string;
+    };
+  }>;
+}
+
+interface RawOpenOrder {
+  oid: string | number;
+  coin: string;
+  side: string;
+  orderType?: string;
+  limitPx?: string;
+  triggerPx?: string | null;
+  sz: string;
+  origSz?: string;
+  reduceOnly?: boolean;
+  timestamp?: number;
+}
+
+interface RawFill {
+  tid: string | number;
+  coin: string;
+  side: string;
+  px: string;
+  sz: string;
+  fee: string;
+  feeToken?: string;
+  closedPnl?: string;
+  time: number;
+  dir?: string;
+  liquidation?: unknown;
+}
+
+/** Map raw clearinghouseState assetPositions array to Position[]. */
+function mapPositionsFromRaw(raw: RawClearinghouse): Position[] {
+  const positions: Position[] = [];
+  for (const ap of raw.assetPositions ?? []) {
+    const pos = ap.position;
+    const szi = parseFloat(pos.szi);
+    if (szi === 0) continue;
+    const entryPx = parseFloat(pos.entryPx);
+    const markPx = pos.positionValue ? Math.abs(parseFloat(pos.positionValue) / szi) : entryPx;
+    positions.push({
+      symbol: pos.coin,
+      side: szi > 0 ? "long" : "short",
+      size: Math.abs(szi),
+      entryPrice: entryPx,
+      markPrice: markPx,
+      liquidationPrice: pos.liquidationPx && pos.liquidationPx !== "0.0" && parseFloat(pos.liquidationPx) > 0 ? parseFloat(pos.liquidationPx) : null,
+      unrealizedPnl: parseFloat(pos.unrealizedPnl),
+      unrealizedPnlPct: parseFloat(pos.returnOnEquity ?? "0") * 100,
+      leverage: parseFloat(pos.leverage?.value ?? "1"),
+      marginMode: pos.leverage?.type === "isolated" ? "isolated" : "cross",
+      margin: parseFloat(pos.marginUsed),
+    });
+  }
+  return positions;
+}
+
+/** Map a raw frontendOpenOrders entry to OpenOrder. */
+function mapOpenOrderFromRaw(o: RawOpenOrder): OpenOrder {
+  return {
+    orderId: String(o.oid),
+    symbol: o.coin,
+    side: o.side === "B" ? "buy" as const : "sell" as const,
+    orderType: o.orderType ?? "Limit",
+    price: o.limitPx ? parseFloat(o.limitPx) : null,
+    triggerPrice: o.triggerPx && o.triggerPx !== "0.0" ? parseFloat(o.triggerPx) : null,
+    size: parseFloat(o.sz),
+    filled: parseFloat(o.origSz ?? o.sz) - parseFloat(o.sz),
+    reduceOnly: o.reduceOnly ?? false,
+    timestamp: o.timestamp ?? Date.now(),
+  };
+}
+
+/**
  * Map a raw ctx object to a Ticker using the given symbol name.
  */
 function ctxToTicker(ctx: any, symbol: string): Ticker {
@@ -135,6 +228,8 @@ export class HyperliquidClient implements ITradingClient {
   private maxLeverage: Map<string, number> = new Map();
   private assetNames: string[] = [];
   private metaLoaded = false;
+  // Single-flight promise for concurrent ensureMeta() callers during rebuild.
+  private metaInFlight: Promise<void> | null = null;
 
   // Per-dex universe names keyed by dex name ("" = native).
   // Populated by ensureMeta() and used by getAllTickers() to pair ctxs with symbols.
@@ -144,6 +239,19 @@ export class HyperliquidClient implements ITradingClient {
   private dexListCache: PerpDexInfo[] | null = null;
   private dexListCacheAt = 0;
   private readonly DEX_CACHE_TTL_MS = 60 * 60 * 1000;
+
+  // Short-TTL cache for metaAndAssetCtxs calls (3s) to coalesce concurrent callers.
+  private readonly infoCache = new InfoCache(3000);
+
+  // ─── WS transport (single socket, lazy-init, shared by all subscribers) ───
+  private wsTransport: WebSocketTransport | null = null;
+  private wsSubClient: SubscriptionClient | null = null;
+  // Single-flight: concurrent first-callers share one init promise.
+  private wsLifecycle: Promise<SubscriptionClient> | null = null;
+
+  // Tracks whether the WS client has been disposed so getSubscriptionClient()
+  // can refuse to create a zombie transport after closeWs().
+  private wsDisposed = false;
 
   constructor(config: HyperliquidConfig | undefined, logger: Logger) {
     this.defaultAddress = config?.address ?? "";
@@ -165,6 +273,8 @@ export class HyperliquidClient implements ITradingClient {
   connect(config: HyperliquidConfig): void {
     this.defaultAddress = config.address || this.defaultAddress;
     this.baseUrl = config.testnet ? TESTNET_URL : MAINNET_URL;
+    // Allow a fresh WS session after disconnect().
+    this.wsDisposed = false;
     if (config.privateKey) {
       const wallet = privateKeyToAccount(config.privateKey as `0x${string}`);
       const transport = new HttpTransport({ isTestnet: config.testnet });
@@ -172,10 +282,12 @@ export class HyperliquidClient implements ITradingClient {
     }
   }
 
-  /** Disconnect wallet — clears address and exchange client. */
+  /** Disconnect wallet — clears address, exchange client, and WS transport. */
   disconnect(): void {
     this.defaultAddress = "";
     this.exchange = null;
+    // Best-effort WS teardown — fire-and-forget so disconnect() stays sync.
+    void this.closeWs();
   }
 
   private requireExchange(): ExchangeClient {
@@ -185,12 +297,55 @@ export class HyperliquidClient implements ITradingClient {
 
   // ─── HTTP helper ───
 
-  private async info(type: string, extra: Record<string, unknown> = {}): Promise<unknown> {
+  /**
+   * POST to /info with retry on 429. Pass `{ cache: true }` to coalesce
+   * concurrent identical calls through the short-TTL promise cache —
+   * appropriate for read-mostly market-data endpoints (metaAndAssetCtxs)
+   * where a slightly-stale shared response is preferable to N parallel
+   * weight hits. Default is uncached so account-state reads
+   * (clearinghouseState, userFills, …) stay fresh.
+   *
+   * On 429 the method waits for the server-supplied Retry-After delay (or
+   * 250 * 2^attempt ms when the header is absent) plus 0–100 ms jitter,
+   * then recurses up to 3 times before giving up. Any other non-2xx status
+   * throws immediately with no retry.
+   */
+  private async info(
+    type: string,
+    extra: Record<string, unknown> = {},
+    options: { cache?: boolean } = {},
+  ): Promise<unknown> {
+    if (!options.cache) return this.fetchInfo(type, extra, 0);
+    const key = `${type}:${JSON.stringify(extra)}`;
+    return this.infoCache.get(key, () => this.fetchInfo(type, extra, 0));
+  }
+
+  private async fetchInfo(
+    type: string,
+    extra: Record<string, unknown>,
+    attempt: number,
+  ): Promise<unknown> {
     const res = await fetch(`${this.baseUrl}/info`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, ...extra }),
     });
+
+    if (res.status === 429 && attempt < 3) {
+      const retryAfterRaw = res.headers.get("retry-after");
+      const retryAfterSec = retryAfterRaw !== null ? Number(retryAfterRaw) : NaN;
+      // Cap server-supplied Retry-After at 5s so a hostile or misconfigured
+      // upstream can't stall a single info() call for minutes (≤3 retries × cap).
+      const MAX_RETRY_AFTER_MS = 5000;
+      const baseMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? Math.min(retryAfterSec * 1000, MAX_RETRY_AFTER_MS)
+        : 250 * Math.pow(2, attempt); // 250 → 500 → 1000 ms
+      const jitterMs = Math.random() * 100;
+      this.log.debug({ type, dex: extra.dex, attempt, delayMs: baseMs + jitterMs }, "rate limited — retrying after backoff");
+      await new Promise<void>((resolve) => setTimeout(resolve, baseMs + jitterMs));
+      return this.fetchInfo(type, extra, attempt + 1);
+    }
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Hyperliquid ${type}: ${res.status} ${text}`);
@@ -242,19 +397,37 @@ export class HyperliquidClient implements ITradingClient {
    * so a previously-failed dex doesn't stay gone for the daemon's lifetime
    * once its TTL expires and the dex list re-populates.
    *
+   * Concurrent callers share a single in-flight rebuild via metaInFlight — the
+   * thundering-herd window on cold start and on new-dex detection is collapsed
+   * to a single 1+N fan-out regardless of how many callers arrive in parallel.
+   *
    * Daemon comes up degraded rather than refusing to start when HL native is
    * partially down — native failure is isolated and logged, HIP-3 still loads.
    */
   async ensureMeta(): Promise<void> {
     if (this.metaLoaded) {
-      // Re-check if the dex list has gained new dexes since last load.
-      // If so, invalidate so we pick them up on next call.
+      // Fast path: already loaded. Re-check dex list only to detect new dexes.
+      // listPerpDexes is 1 h cached, so this is cheap in steady state.
       const currentDexes = await this.listPerpDexes().catch(() => []);
       const knownDexNames = new Set(this.dexUniverses.keys());
       const hasNewDex = currentDexes.some((d) => !knownDexNames.has(d.name));
       if (!hasNewDex) return;
-      this.metaLoaded = false;
+      // Fall through to rebuild — don't clear metaLoaded here to avoid
+      // concurrent fast-path callers seeing a stale false between detection
+      // and the start of rebuild (metaLoaded is cleared inside rebuildMeta).
     }
+
+    // Slow path: coalesce all concurrent rebuilders behind one promise.
+    if (this.metaInFlight !== null) return this.metaInFlight;
+
+    this.metaInFlight = this.rebuildMeta().finally(() => {
+      this.metaInFlight = null;
+    });
+    return this.metaInFlight;
+  }
+
+  private async rebuildMeta(): Promise<void> {
+    this.metaLoaded = false;
 
     // Native universe: failure is isolated — log warn and continue with empty native.
     let nativeUniverse: AssetMeta[] = [];
@@ -265,10 +438,12 @@ export class HyperliquidClient implements ITradingClient {
       this.log.warn({ err }, "Native meta fetch failed — daemon starts degraded (HIP-3 may still load)");
     }
 
-    // HIP-3 dexes in parallel; errors are isolated per-dex.
+    // HIP-3 dexes — bounded concurrency to avoid burst overloading the IP weight cap.
     const dexes = await this.listPerpDexes().catch(() => []);
-    const dexResults = await Promise.allSettled(
-      dexes.map((d) => this.info("meta", { dex: d.name }) as Promise<{ universe: AssetMeta[] }>),
+    const dexResults = await runWithConcurrency(
+      dexes,
+      4,
+      (d) => this.info("meta", { dex: d.name }) as Promise<{ universe: AssetMeta[] }>,
     );
 
     let merged: AssetMeta[] = [...nativeUniverse];
@@ -299,11 +474,83 @@ export class HyperliquidClient implements ITradingClient {
       }
     });
     this.metaLoaded = true;
+    this.log.info({ dexCount: dexes.length }, "meta rebuild complete");
   }
 
   /** Max leverage for a symbol (e.g. BTC → 40). Returns undefined when meta hasn't loaded the asset. */
   getMaxLeverage(symbol: string): number | undefined {
     return this.maxLeverage.get(this.resolveSymbol(symbol));
+  }
+
+  /** All asset names across native + HIP-3 dexes as loaded by ensureMeta. */
+  getAllAssetNames(): string[] {
+    return [...this.assetNames];
+  }
+
+  /** Whether a (resolved) symbol is present in the loaded universe. */
+  isKnownSymbol(symbol: string): boolean {
+    return this.assetMap.has(this.resolveSymbol(symbol));
+  }
+
+  /** Read-only view of per-dex ordered symbol lists. Key "" = native. */
+  getDexUniverses(): ReadonlyMap<string, ReadonlyArray<string>> {
+    return this.dexUniverses;
+  }
+
+  // ─── WS subscription API ───
+
+  /**
+   * Lazy-init the shared WS transport. Concurrent first-callers share one
+   * init promise so only a single socket is opened regardless of how many
+   * consumers call subscribe* simultaneously on cold start.
+   */
+  private async getSubscriptionClient(): Promise<SubscriptionClient> {
+    if (this.wsSubClient !== null) return this.wsSubClient;
+    if (this.wsLifecycle !== null) return this.wsLifecycle;
+
+    this.wsLifecycle = (async () => {
+      if (this.wsDisposed) throw new Error("trading client disposed");
+      const transport = new WebSocketTransport({ isTestnet: this.testnet });
+      const client = new SubscriptionClient({ transport });
+      // Check disposal again after any async suspension in SDK constructors.
+      if (this.wsDisposed) {
+        await transport.close().catch(() => {});
+        throw new Error("trading client disposed");
+      }
+      this.wsTransport = transport;
+      this.wsSubClient = client;
+      return client;
+    })().finally(() => { this.wsLifecycle = null; });
+    return this.wsLifecycle;
+  }
+
+  /**
+   * Subscribe to asset contexts for native + every HIP-3 dex in a single
+   * WS stream. The SDK multiplexes over one underlying socket per transport
+   * instance — no per-dex connection overhead.
+   */
+  async subscribeAllDexsAssetCtxs(
+    listener: (event: AllDexsAssetCtxsEvent) => void,
+  ): Promise<ITradingSubscription> {
+    const client = await this.getSubscriptionClient();
+    // SDK event shape: { ctxs: [dex, ctx[]][] } — map to our interface type.
+    const sub: ISubscription = await (client as unknown as {
+      allDexsAssetCtxs(l: (e: { ctxs: [string, unknown[]][] }) => void): Promise<ISubscription>;
+    }).allDexsAssetCtxs((e) => {
+      listener({ ctxs: e.ctxs as AllDexsAssetCtxsEvent["ctxs"] });
+    });
+    return { unsubscribe: () => sub.unsubscribe() };
+  }
+
+  /** Shut down the WS transport. Called from disconnect() and on daemon stop. */
+  async closeWs(): Promise<void> {
+    this.wsDisposed = true;
+    if (this.wsTransport !== null) {
+      try { await this.wsTransport.close(); } catch { /* ignore — already closed */ }
+    }
+    this.wsTransport = null;
+    this.wsSubClient = null;
+    this.wsLifecycle = null;
   }
 
   /**
@@ -393,65 +640,28 @@ export class HyperliquidClient implements ITradingClient {
 
   async getPositions(address?: string): Promise<Position[]> {
     const user = address ?? this.defaultAddress;
-    const data = await this.info("clearinghouseState", { user }) as any;
-    const positions: Position[] = [];
-
-    for (const ap of data.assetPositions ?? []) {
-      const pos = ap.position;
-      const szi = parseFloat(pos.szi);
-      if (szi === 0) continue;
-
-      const entryPx = parseFloat(pos.entryPx);
-      const markPx = pos.positionValue ? Math.abs(parseFloat(pos.positionValue) / szi) : entryPx;
-      const upnl = parseFloat(pos.unrealizedPnl);
-      const margin = parseFloat(pos.marginUsed);
-
-      positions.push({
-        symbol: pos.coin,
-        side: szi > 0 ? "long" : "short",
-        size: Math.abs(szi),
-        entryPrice: entryPx,
-        markPrice: markPx,
-        liquidationPrice: pos.liquidationPx && pos.liquidationPx !== "0.0" && parseFloat(pos.liquidationPx) > 0 ? parseFloat(pos.liquidationPx) : null,
-        unrealizedPnl: upnl,
-        unrealizedPnlPct: parseFloat(pos.returnOnEquity ?? "0") * 100,
-        leverage: parseFloat(pos.leverage?.value ?? "1"),
-        marginMode: pos.leverage?.type === "isolated" ? "isolated" : "cross",
-        margin,
-      });
-    }
-    return positions;
+    const data = await this.info("clearinghouseState", { user }) as RawClearinghouse;
+    return mapPositionsFromRaw(data);
   }
 
   async getOpenOrders(address?: string): Promise<OpenOrder[]> {
     const user = address ?? this.defaultAddress;
-    const data = await this.info("frontendOpenOrders", { user }) as any[];
-    return data.map((o: any) => ({
-      orderId: String(o.oid),
-      symbol: o.coin,
-      side: o.side === "B" ? "buy" as const : "sell" as const,
-      orderType: o.orderType ?? "Limit",
-      price: o.limitPx ? parseFloat(o.limitPx) : null,
-      triggerPrice: o.triggerPx && o.triggerPx !== "0.0" ? parseFloat(o.triggerPx) : null,
-      size: parseFloat(o.sz),
-      filled: parseFloat(o.origSz ?? o.sz) - parseFloat(o.sz),
-      reduceOnly: o.reduceOnly ?? false,
-      timestamp: o.timestamp ?? Date.now(),
-    }));
+    const data = await this.info("frontendOpenOrders", { user }) as RawOpenOrder[];
+    return data.map(mapOpenOrderFromRaw);
   }
 
   async getFills(address?: string, limit = 20): Promise<Fill[]> {
     const user = address ?? this.defaultAddress;
-    const data = await this.info("userFills", { user }) as any[];
-    return data.slice(0, limit).map((f: any) => mapFill(f));
+    const data = await this.info("userFills", { user }) as RawFill[];
+    return data.slice(0, limit).map(mapFill);
   }
 
   async getFillsByTime(address: string | undefined, startTime: number, endTime?: number): Promise<Fill[]> {
     const user = address ?? this.defaultAddress;
     const params: Record<string, unknown> = { user, startTime };
     if (endTime !== undefined) params.endTime = endTime;
-    const data = await this.info("userFillsByTime", params) as any[];
-    return data.map((f: any) => mapFill(f));
+    const data = await this.info("userFillsByTime", params) as RawFill[];
+    return data.map(mapFill);
   }
 
   /**
@@ -481,6 +691,8 @@ export class HyperliquidClient implements ITradingClient {
     const { dex } = parseDex(resolved);
 
     const extra = dex !== null ? { dex } : {};
+    // Single-symbol path stays uncached so order-placement flows that call
+    // getTicker() to read midPx see fresh data; the burst case is getAllTickers().
     const data = await this.info("metaAndAssetCtxs", extra) as unknown as any[];
     const ctxs: any[] = data[1] ?? [];
 
@@ -513,7 +725,7 @@ export class HyperliquidClient implements ITradingClient {
     const tickers: Ticker[] = [];
 
     // Native (no dex param)
-    const nativeData = await this.info("metaAndAssetCtxs") as unknown as any[];
+    const nativeData = await this.info("metaAndAssetCtxs", {}, { cache: true }) as unknown as any[];
     const nativeCtxs: any[] = nativeData[1] ?? [];
     const responseNativeUniverse: AssetMeta[] = nativeData[0]?.universe ?? [];
     const nativeNames: string[] = responseNativeUniverse.length > 0
@@ -525,10 +737,12 @@ export class HyperliquidClient implements ITradingClient {
       tickers.push(ctxToTicker(nativeCtxs[i], name));
     }
 
-    // HIP-3 dexes in parallel
+    // HIP-3 dexes — bounded concurrency to stay within the IP weight bucket.
     const dexes = await this.listPerpDexes().catch(() => []);
-    const dexCtxResults = await Promise.allSettled(
-      dexes.map((d) => this.info("metaAndAssetCtxs", { dex: d.name }) as Promise<any[]>),
+    const dexCtxResults = await runWithConcurrency(
+      dexes,
+      4,
+      (d) => this.info("metaAndAssetCtxs", { dex: d.name }, { cache: true }) as Promise<any[]>,
     );
 
     for (let i = 0; i < dexCtxResults.length; i++) {
@@ -578,7 +792,11 @@ export class HyperliquidClient implements ITradingClient {
       "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000, "1w": 604_800_000,
     };
     const ms = intervalMs[interval] ?? 3_600_000;
-    const endTime = Date.now();
+    // Quantise endTime to 3s buckets so concurrent callers within the same
+    // window share one InfoCache entry (3s TTL). Kline boundaries shift by
+    // at most 3s which is acceptable for the TA and top-movers flows.
+    const QUANTISE_MS = 3_000;
+    const endTime = Math.floor(Date.now() / QUANTISE_MS) * QUANTISE_MS;
     const startTime = endTime - limit * ms;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -587,7 +805,7 @@ export class HyperliquidClient implements ITradingClient {
         timer = setTimeout(() => reject(new Error("Hyperliquid klines timeout (10s)")), 10_000);
       });
       const data = await Promise.race([
-        this.info("candleSnapshot", { req: { coin: resolved, interval, startTime, endTime } }) as Promise<any[]>,
+        this.info("candleSnapshot", { req: { coin: resolved, interval, startTime, endTime } }, { cache: true }) as Promise<any[]>,
         timeout,
       ]);
 

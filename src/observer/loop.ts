@@ -53,6 +53,7 @@ import { diffSnapshot } from "./diff.js";
 import { fetchSnapshot, type SnapshotInput } from "./snapshot.js";
 import type { ObserverEvent } from "./events.js";
 import { callJudge, type JudgeResponse } from "./judge.js";
+import { decidePnlDrift, type PnlDriftState } from "./pnl-drift.js";
 import type { ChatSnippet } from "../daemon/prompts/event-judge.js";
 import { dispatchOutbound, type OutboundChannel } from "../channels/index.js";
 import { ChannelId } from "../channels/types.js";
@@ -172,6 +173,10 @@ export class ObserverLoop {
   // moment the user opens the web app — which is exactly the spam complaint
   // this loop is supposed to prevent.
   private lastProactiveAtMs: number;
+  // Portfolio PnL-drift detector state. In-memory only — a daemon restart
+  // re-seeds the baseline on the next tick, intentionally muting the first
+  // post-restart drift evaluation. See pnl-drift.ts for thresholds.
+  private pnlDriftState: PnlDriftState = { lastSnapshotPnl: null, lastSentAtMs: null };
 
   constructor(private readonly deps: ObserverLoopDeps) {
     this.store = new ObserverStateStore(deps.db);
@@ -267,6 +272,40 @@ export class ObserverLoop {
     //     emitting every tick; the gate sits between diff and judge.
     // -----------------------------------------------------------------
     const gatedEvents = filterPnlSnapshots(diff.events, prior.positions, nowMs);
+
+    // -----------------------------------------------------------------
+    // 4c. Portfolio PnL-drift gate. Account-level drift while the user is
+    //     idle for hours is a separate signal from per-position pnl_snapshot:
+    //     it can fire even when no single position moved past the per-position
+    //     price floor, and it intentionally bypasses that floor when the user
+    //     has been silent long enough that one summary message is welcome.
+    //
+    //     With zero open positions the totalUnrealizedPnl collapses to 0,
+    //     which would (with a non-zero baseline from a prior tick) look like
+    //     a 100% drift and fire a stale "PnL went from $X to $0" message
+    //     hours after the close. Re-seed the baseline on empty portfolio so
+    //     the next position open starts a fresh observation window.
+    // -----------------------------------------------------------------
+    if (rest.positions.length === 0) {
+      this.pnlDriftState = { lastSnapshotPnl: null, lastSentAtMs: null };
+    } else {
+      const totalUnrealizedPnl = rest.positions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+      const session = this.deps.sessionManager.getOrCreate(MAIN_SESSION_KEY);
+      const lastUserActivityMs = session.lastActiveAt?.getTime() ?? null;
+      const driftDecision = decidePnlDrift({
+        state: this.pnlDriftState,
+        currentPnl: totalUnrealizedPnl,
+        lastUserActivityMs,
+        nowMs,
+      });
+      if (driftDecision.fire) {
+        gatedEvents.push(driftDecision.event);
+      }
+      this.pnlDriftState = {
+        lastSnapshotPnl: driftDecision.nextSnapshotPnl,
+        lastSentAtMs: driftDecision.fire ? nowMs : this.pnlDriftState.lastSentAtMs,
+      };
+    }
 
     // -----------------------------------------------------------------
     // 5. Next baseline. Persist AFTER eval succeeds so a crash mid-tick
@@ -519,11 +558,18 @@ export class ObserverLoop {
     for (const msg of session.messages) {
       const m = msg as { role?: string; content?: unknown; timestamp?: number };
       if (m.role !== "user" && m.role !== "assistant") continue;
-      if (!Array.isArray(m.content)) continue;
+      // Inbound user messages persist `content` as a plain string
+      // (orchestrator.ts:183); assistant turns and SDK-shaped messages use
+      // the array-of-blocks shape. Accept both so the judge sees full chat
+      // context after a daemon restart, not just array-shape entries.
       let text = "";
-      for (const block of m.content as Array<{ type?: string; text?: unknown }>) {
-        if (block?.type === "text" && typeof block.text === "string") {
-          text += block.text;
+      if (typeof m.content === "string") {
+        text = m.content;
+      } else if (Array.isArray(m.content)) {
+        for (const block of m.content as Array<{ type?: string; text?: unknown }>) {
+          if (block?.type === "text" && typeof block.text === "string") {
+            text += block.text;
+          }
         }
       }
       if (text.trim().length === 0) continue;

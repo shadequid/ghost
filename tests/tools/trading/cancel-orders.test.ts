@@ -61,6 +61,11 @@ function createMockHL(state: MockState): ITradingClient {
     ensureMeta: async () => {},
     getAssetIndex: async () => 0,
     getMaxLeverage: () => undefined,
+    getAllAssetNames: () => [],
+    isKnownSymbol: () => false,
+    getDexUniverses: () => new Map(),
+    subscribeAllDexsAssetCtxs: async () => ({ unsubscribe: async () => {} }),
+    closeWs: async () => {},
     placeOrder: async () => ({ symbol: "BTC", side: "buy", orderType: "market", status: "filled" }),
     cancelOrder: async (symbol: string, orderId: string): Promise<CancelOrderResult> => {
       if (state.cancelOrder) return state.cancelOrder(symbol, orderId);

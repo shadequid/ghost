@@ -102,7 +102,6 @@ interface TokenData {
   tokens: string[];
   prices: Record<string, number>;
   prevDayPrices: Record<string, number>;
-  maxLeverages: Record<string, number>;
 }
 
 interface WatchlistItem {
@@ -113,7 +112,7 @@ interface WatchlistItem {
 
 export function WatchlistWidget() {
   const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
-  const [tokenData, setTokenData] = useState<TokenData>({ tokens: [], prices: {}, prevDayPrices: {}, maxLeverages: {} });
+  const [tokenData, setTokenData] = useState<TokenData>({ tokens: [], prices: {}, prevDayPrices: {} });
   const [isEditing, setIsEditing] = useWatchlistEditing();
   const [searchQuery, setSearchQuery] = useState('');
   const { request, connected, subscribe } = useGateway();
@@ -131,13 +130,12 @@ export function WatchlistWidget() {
     request<TokenData>('trading.tokens.list', {})
       .then((res) => {
         // On transient HL outage the gateway returns empty maps. Preserve
-        // the last-known prices + maxLeverages so the UI doesn't flash to
-        // blank state until the next successful poll.
+        // the last-known prices so the UI doesn't flash to blank state
+        // until the next successful poll.
         setTokenData((prev) => ({
           ...res,
           prices: Object.keys(res.prices).length > 0 ? res.prices : prev.prices,
           prevDayPrices: Object.keys(res.prevDayPrices).length > 0 ? res.prevDayPrices : prev.prevDayPrices,
-          maxLeverages: Object.keys(res.maxLeverages).length > 0 ? res.maxLeverages : prev.maxLeverages,
         }));
       })
       .catch(() => {});
@@ -148,12 +146,11 @@ export function WatchlistWidget() {
     fetchTokens();
   }, [loadWatchlist, fetchTokens]);
 
-  // Continuous price refresh — the gateway emits `trading.price.update`
-  // events but they don't always fire fast enough to feel "live", so we
-  // also poll the token list every 4s for snappier tick updates.
+  // Metadata refresh — token universe + leverage tiers change on the order
+  // of hours, not seconds. Prices arrive via WS (`trading.price.update`).
   useEffect(() => {
     if (!connected) return;
-    const id = window.setInterval(() => fetchTokens(), 4000);
+    const id = window.setInterval(() => fetchTokens(), 60_000);
     return () => window.clearInterval(id);
   }, [connected, fetchTokens]);
 
@@ -163,12 +160,22 @@ export function WatchlistWidget() {
         loadWatchlist();
       }
       if (evt.event === 'trading.price.update') {
-        const { symbol, price } = evt.payload as { symbol: string; price: number };
-        setTokenData((prev) =>
-          prev.prices[symbol] === price
-            ? prev
-            : { ...prev, prices: { ...prev.prices, [symbol]: price } },
-        );
+        const { symbol, price, prevDayPrice } = evt.payload as { symbol: string; price: number; prevDayPrice?: number };
+        setTokenData((prev) => {
+          const priceUnchanged = prev.prices[symbol] === price;
+          // Only update prevDayPrices when a fresh value arrives — preserve the
+          // last-known value on ticks that don't carry prevDay (e.g. Binance WS).
+          const prevDayUnchanged = prevDayPrice === undefined
+            || prev.prevDayPrices[symbol] === prevDayPrice;
+          if (priceUnchanged && prevDayUnchanged) return prev;
+          return {
+            ...prev,
+            prices: priceUnchanged ? prev.prices : { ...prev.prices, [symbol]: price },
+            prevDayPrices: prevDayPrice !== undefined
+              ? { ...prev.prevDayPrices, [symbol]: prevDayPrice }
+              : prev.prevDayPrices,
+          };
+        });
       }
     });
   }, [subscribe, loadWatchlist]);
@@ -181,7 +188,7 @@ export function WatchlistWidget() {
 
   const symbols = useMemo(() => watchlistItems.map((i) => i.symbol), [watchlistItems]);
   const watchlistSet = useMemo(() => new Set(symbols), [symbols]);
-  const { prices, prevDayPrices, maxLeverages, tokens: allTokens } = tokenData;
+  const { prices, prevDayPrices, tokens: allTokens } = tokenData;
   const hasPrices = Object.keys(prices).length > 0;
 
   const filteredTokens = useMemo(() => {
@@ -208,7 +215,6 @@ export function WatchlistWidget() {
         tokens={filteredTokens}
         prices={prices}
         prevDayPrices={prevDayPrices}
-        maxLeverages={maxLeverages}
         watchlistSet={watchlistSet}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -261,7 +267,7 @@ export function WatchlistWidget() {
               onClick={() => panel?.open({ symbol: sym })}
             >
               <div className="flex items-center gap-1.5 text-body-md text-text-primary min-w-0">
-                <SymbolBadges symbol={sym} maxLeverages={maxLeverages} />
+                <SymbolBadges symbol={sym} />
               </div>
               <div className="flex items-center gap-3 text-body-sm [font-variant-numeric:tabular-nums]">
                 {/* Price stays white — TradingView convention. Only the

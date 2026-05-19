@@ -60,7 +60,7 @@ export function createAdvancedTradingTools(
       async execute(_toolCallId, params) {
         try {
           const upper = params.symbol.toUpperCase();
-          try { await hl.getTicker(upper); } catch { return errorResult(`Symbol ${upper} not found on Hyperliquid`); }
+          if (!hl.isKnownSymbol(upper)) return errorResult(`Symbol ${upper} not found on Hyperliquid`);
           const item = await watchlist.add(upper, params.notes);
           return textResult(`Added ${item.symbol} to watchlist.${item.notes ? ` Notes: ${item.notes}` : ""}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
@@ -131,14 +131,9 @@ export function createAdvancedTradingTools(
           const cond: "above" | "below" = params.condition;
 
           const upper = params.symbol.toUpperCase();
-          // Reject only if the symbol isn't a Hyperliquid perp at all —
-          // that's the real lower bound, not watchlist membership. The
-          // ticker call doubles as the past-target reference below.
-          try {
-            await hl.getTicker(upper);
-          } catch {
-            return errorResult(`Symbol ${upper} not found on Hyperliquid.`);
-          }
+          // Reject early if the symbol isn't known; avoids a network
+          // round-trip for a name the exchange will never accept.
+          if (!hl.isKnownSymbol(upper)) return errorResult(`Symbol ${upper} not found on Hyperliquid.`);
 
           // Past-target check — reject upfront with a "try X instead"
           // nudge so the alert doesn't fire on the very next tick. The

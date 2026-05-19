@@ -43,9 +43,9 @@ class FakeSource implements PriceSource {
   }
 
   /** Drive a synthetic tick. Updates lastTickAt to now. */
-  tick(symbol: string, price: number): void {
+  tick(symbol: string, price: number, prevDayPrice?: number): void {
     this.lastTickAt = Date.now();
-    this.onTick?.(symbol, price);
+    this.onTick?.(symbol, price, prevDayPrice);
   }
 
   /** Force the source into an unhealthy state by rewinding its last tick. */
@@ -353,6 +353,27 @@ describe("CompositePriceFeed", () => {
 
     await feed.stop();
     expect(a.running).toBe(false);
+  });
+
+  test("prevDayPrice is forwarded end-to-end from source through composite callback", async () => {
+    const hl = new FakeSource("hyperliquid", 0);
+    const received: Array<[string, number, number | undefined]> = [];
+
+    const feed = new CompositePriceFeed(
+      [hl],
+      { staleThresholdMs: 1_000, stabilityWindowMs: 100, healthCheckIntervalMs: 5 },
+      silent,
+    );
+    await feed.start((sym, price, prevDayPrice) => received.push([sym, price, prevDayPrice]));
+
+    hl.tick("BTC", 60_000, 58_000);
+    expect(received).toEqual([["BTC", 60_000, 58_000]]);
+
+    // Tick without prevDayPrice — should forward undefined
+    hl.tick("ETH", 3_000);
+    expect(received[1]).toEqual(["ETH", 3_000, undefined]);
+
+    await feed.stop();
   });
 
   test("a source that never ticks doesn't prevent the other from serving as primary", async () => {

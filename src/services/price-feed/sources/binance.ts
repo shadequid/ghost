@@ -62,12 +62,16 @@ interface BinanceMarkPriceUpdate {
   s?: string;
   /** Mark price (stringified number). */
   p?: string;
+  /** Open price 24h ago (stringified number) — present on miniTicker streams, absent on markPrice stream. */
+  o?: string;
 }
 
 interface BinanceRestPremiumIndex {
   symbol?: string;
   /** Mark price (stringified number). */
   markPrice?: string;
+  /** Open price 24h ago (stringified number) — absent on premiumIndex, present on ticker/24hr. */
+  openPrice?: string;
 }
 
 // USDⓈ-M perpetual futures, MARK price streams. Ghost is a perp companion
@@ -246,7 +250,7 @@ export class BinanceSource implements PriceSource {
       const sym = entry?.s;
       const mark = entry?.p;
       if (typeof sym !== "string" || typeof mark !== "string") continue;
-      const emitted = this.emitMapped(sym, mark, callback);
+      const emitted = this.emitMapped(sym, mark, entry.o, callback);
       if (emitted) anyEmitted = true;
     }
     if (anyEmitted) this.lastWsTickAt = now;
@@ -312,7 +316,7 @@ export class BinanceSource implements PriceSource {
               const sym = row?.symbol;
               const mark = row?.markPrice;
               if (typeof sym !== "string" || typeof mark !== "string") continue;
-              const emitted = this.emitMapped(sym, mark, callback);
+              const emitted = this.emitMapped(sym, mark, row.openPrice, callback);
               if (emitted) anyEmitted = true;
             }
             if (anyEmitted) this.lastRestTickAt = now;
@@ -332,11 +336,18 @@ export class BinanceSource implements PriceSource {
 
   /**
    * Apply the canonical filter→map→multiply→emit pipeline to a single
-   * Binance (symbol, priceStr) pair. Returns true when a tick was emitted,
-   * false when filtered/mapped-out/parse-error. Shared between WS and REST
-   * paths so mapping semantics cannot drift between the two.
+   * Binance (symbol, priceStr, prevDayPriceStr) tuple. Returns true when a
+   * tick was emitted, false when filtered/mapped-out/parse-error. Shared
+   * between WS and REST paths so mapping semantics cannot drift between the
+   * two. `prevDayPriceStr` is optional — absent on the markPrice stream and
+   * premiumIndex REST endpoint; present if a richer stream is ever adopted.
    */
-  private emitMapped(binanceSymbol: string, priceStr: string, callback: PriceTickCallback): boolean {
+  private emitMapped(
+    binanceSymbol: string,
+    priceStr: string,
+    prevDayPriceStr: string | undefined,
+    callback: PriceTickCallback,
+  ): boolean {
     // Structural filters first — cheap rejection before mapping lookup and
     // before we count the symbol as "seen" for tick-age purposes.
     if (!binanceSymbol.endsWith("USDT")) return false;
@@ -352,7 +363,16 @@ export class BinanceSource implements PriceSource {
     if (!Number.isFinite(binancePrice)) return false;
 
     const hlPrice = binancePrice * mapping.multiplier;
-    callback(mapping.hlSymbol, hlPrice);
+
+    let prevDayPrice: number | undefined;
+    if (prevDayPriceStr !== undefined) {
+      const rawPrev = Number.parseFloat(prevDayPriceStr);
+      if (Number.isFinite(rawPrev) && rawPrev > 0) {
+        prevDayPrice = rawPrev * mapping.multiplier;
+      }
+    }
+
+    callback(mapping.hlSymbol, hlPrice, prevDayPrice);
     return true;
   }
 

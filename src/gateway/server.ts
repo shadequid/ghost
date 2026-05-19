@@ -50,6 +50,7 @@ import { CompositePriceFeed } from "../services/price-feed/composite.js";
 import { HyperliquidSource } from "../services/price-feed/sources/hyperliquid.js";
 import { BinanceSource } from "../services/price-feed/sources/binance.js";
 import type { PriceSource } from "../services/price-feed/types.js";
+import { TokensSnapshotService } from "../services/tokens-snapshot.js";
 import type { VersionCheck } from "../update/version-check.js";
 import type { Logger } from "pino";
 
@@ -166,7 +167,8 @@ export function createGateway(gatewayConfig: Config["gateway"], deps: GatewayDep
   registerToolsMethods(registry.register.bind(registry), { tools: deps.tools });
   registerSessionsMethods(registry.register.bind(registry), { sessionManager: deps.sessionManager });
   registerCronMethods(registry.register.bind(registry), { cronService: deps.cronService });
-  registerTradingMethods(registry.register.bind(registry), { tradingClient: deps.tradingClient, walletStore: deps.walletStore, alertRules: deps.alertRules, notifications: deps.notifications, newsService: deps.newsService, rssDiscovery: deps.rssDiscoveryService, tweetService: deps.tweetService, xFollowService: deps.xFollowService, preferenceStore: deps.preferenceStore, watchlist: deps.watchlistService, logger: deps.logger });
+  const tokensSnapshot = new TokensSnapshotService(deps.tradingClient, deps.priceCache);
+  registerTradingMethods(registry.register.bind(registry), { tradingClient: deps.tradingClient, walletStore: deps.walletStore, alertRules: deps.alertRules, notifications: deps.notifications, newsService: deps.newsService, rssDiscovery: deps.rssDiscoveryService, tweetService: deps.tweetService, xFollowService: deps.xFollowService, preferenceStore: deps.preferenceStore, watchlist: deps.watchlistService, logger: deps.logger, tokensSnapshot, priceCache: deps.priceCache });
   registerApprovalMethods(registry.register.bind(registry), { approvalManager: deps.approvalManager });
   registerToolApprovalMethods(registry.register.bind(registry), { approvalManager: deps.approvalManager });
   registerSkillsMethods(registry.register.bind(registry), { skillService: deps.skillService });
@@ -204,11 +206,6 @@ export function createGateway(gatewayConfig: Config["gateway"], deps: GatewayDep
   // underlying source is primary at any given moment (failover is transparent).
   const lastPrices = new Map<string, number>();
 
-  let watchedSymbols = new Set(deps.watchlistService.list().map((i) => i.symbol));
-  deps.watchlistService.onChanged(() => {
-    watchedSymbols = new Set(deps.watchlistService.list().map((i) => i.symbol));
-  });
-
   const priceFeedConfig = deps.config.priceFeed;
   const priceFeedLogger = deps.logger.child({ module: "price-feed" });
 
@@ -238,18 +235,26 @@ export function createGateway(gatewayConfig: Config["gateway"], deps: GatewayDep
     priceFeedLogger,
   );
 
-  function broadcastPrice(symbol: string, price: number) {
+  function broadcastPrice(symbol: string, price: number, prevDayPrice?: number) {
+    // Update cache unconditionally so prevDayPrice always reaches consumers,
+    // even when the mark price hasn't changed between ticks (flat markets,
+    // daily rollover updating prevDayPx while mark is pinned).
+    deps.priceCache.set(symbol, price, prevDayPrice);
     const prev = lastPrices.get(symbol);
-    if (prev === price) return;
+    // Skip re-broadcast only when price is flat AND there is no prevDayPrice
+    // to propagate. When prevDayPrice is defined (daily rollover scenario) we
+    // always emit so the FE gets the updated 24h baseline.
+    if (prev === price && prevDayPrice === undefined) return;
     lastPrices.set(symbol, price);
-    deps.priceCache.set(symbol, price);
-    if (watchedSymbols.has(symbol)) {
-      // eventBus.publish is the single emit path — the daemon's generic
-      // bus->broadcast forwarder (`eventBus.subscribe(clientManager.broadcast)`)
-      // fans out to all WS clients under the event.type topic. Calling
-      // clientManager.broadcast here would double-emit each tick.
-      deps.eventBus.publish(TradingEvents.priceUpdate({ symbol, price }));
-    }
+    // Broadcast ALL price updates to FE — the token picker UI renders symbols
+    // outside the watchlist and needs live ticks for them too. Per-tick payload
+    // is ~50 bytes; HL push rate ~10-100 ticks/sec aggregate = <5 KB/s. FE
+    // subscribers filter by symbol on the client side.
+    // eventBus.publish is the single emit path — the daemon's generic
+    // bus->broadcast forwarder (`eventBus.subscribe(clientManager.broadcast)`)
+    // fans out to all WS clients under the event.type topic. Calling
+    // clientManager.broadcast here would double-emit each tick.
+    deps.eventBus.publish(TradingEvents.priceUpdate({ symbol, price, prevDayPrice }));
   }
 
   async function startPriceFeed() {
@@ -259,7 +264,8 @@ export function createGateway(gatewayConfig: Config["gateway"], deps: GatewayDep
     }
     lastPrices.clear();
     try {
-      await compositeFeed.start((symbol, price) => broadcastPrice(symbol, price));
+      await compositeFeed.start((symbol, price, prevDayPrice) =>
+        broadcastPrice(symbol, price, prevDayPrice));
     } catch (err) {
       priceFeedLogger.warn({ err }, "composite price feed failed to start");
     }

@@ -50,6 +50,13 @@ export interface CronDeliveryDeps {
  * Pull up to N most recent user-authored text snippets from the main session.
  * Tool calls, assistant turns, and synthetic markers are excluded — we only
  * want substance the user actually typed, since that is the language signal.
+ *
+ * `content` may be either a string (Orchestrator's inbound path appends user
+ * messages as `{role:"user", content: "<text>"}`) or an array of content blocks
+ * (some channel paths and pi-ai's canonical Message shape). Handle both so we
+ * surface a language signal after restart, when the session was rehydrated from
+ * JSONL where most user lines are string-form.
+ *
  * Empty session returns an empty array; caller omits the reference block.
  */
 function snapshotRecentUserMessages(
@@ -60,11 +67,15 @@ function snapshotRecentUserMessages(
   const out: string[] = [];
   for (const msg of session.messages) {
     const m = msg as { role?: string; content?: unknown };
-    if (m.role !== "user" || !Array.isArray(m.content)) continue;
+    if (m.role !== "user") continue;
     let text = "";
-    for (const block of m.content as Array<{ type?: string; text?: unknown }>) {
-      if (block?.type === "text" && typeof block.text === "string") {
-        text += block.text;
+    if (typeof m.content === "string") {
+      text = m.content;
+    } else if (Array.isArray(m.content)) {
+      for (const block of m.content as Array<{ type?: string; text?: unknown }>) {
+        if (block?.type === "text" && typeof block.text === "string") {
+          text += block.text;
+        }
       }
     }
     const trimmed = text.trim();

@@ -134,7 +134,10 @@ export function TweetRow({
     : null;
 
   return (
-    <div className="relative px-4 py-3 border-b border-[rgba(32,36,54,0.6)] transition-colors duration-fast ease-out hover:bg-white/[0.02]">
+    <div
+      className="relative px-4 py-3 border-b border-[rgba(32,36,54,0.6)] transition-colors duration-fast ease-out hover:bg-white/[0.02]"
+      style={{ backgroundImage: 'linear-gradient(180deg, rgba(1,1,1,0) 21.552%, var(--color-surface-canvas, #0a0a0b) 88.233%)' }}
+    >
       {retweetLabel && <RetweetChip label={retweetLabel} />}
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar url={t.avatarUrl} seed={t.username} label={displayName} size={28} />

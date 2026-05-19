@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Popover } from '@/components/Popover';
-import { ExposeModal } from '@/components/ExposeModal';
 import { UpdateAvailableModal } from '@/components/UpdateAvailableModal';
 import { useGateway } from '@/hooks/useGateway';
 import {
@@ -56,9 +55,17 @@ function useVersionStatus(): VersionStatus {
   return state;
 }
 
+/**
+ * GitHub docs URL for the "Expose to internet" hint. Opening in a new tab
+ * (rather than embedding tunneling recipes in-app) keeps Ghost itself from
+ * suggesting any particular network-exposure strategy — users follow the
+ * canonical docs and make their own choice.
+ */
+const NETWORK_EXPOSURE_DOCS_URL =
+  'https://github.com/hyperflowdotfun/ghost/blob/main/docs/security/network-exposure.md';
+
 export function SystemMenuDropdown() {
   const [open, setOpen] = useState(false);
-  const [exposeOpen, setExposeOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [tweetsVisible, setTweetsVisible] = useState(readTweetsVisible);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,7 +121,10 @@ export function SystemMenuDropdown() {
           <MenuItem
             icon={<MouseCircleIcon />}
             label="Expose to internet"
-            onClick={() => { setOpen(false); setExposeOpen(true); }}
+            onClick={() => {
+              setOpen(false);
+              window.open(NETWORK_EXPOSURE_DOCS_URL, '_blank', 'noopener,noreferrer');
+            }}
           />
         </div>
         <VersionRow
@@ -123,7 +133,6 @@ export function SystemMenuDropdown() {
           onUpdateClick={() => { setOpen(false); setUpdateOpen(true); }}
         />
       </Popover>
-      <ExposeModal open={exposeOpen} onClose={() => setExposeOpen(false)} />
       <UpdateAvailableModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
     </div>
   );
@@ -203,8 +212,8 @@ interface VersionRowProps {
 
 /** Bottom row of the system menu. Always shows the installed version with
  *  the primary text color (matches "Show X" / "Expose to internet" above).
- *  When an update is available, the whole row becomes clickable and gets a
- *  "Update New Version" badge on the right. */
+ *  When an update is available, the whole row becomes clickable and gets an
+ *  "Update" badge on the right. */
 function VersionRow({ label, updateAvailable, onUpdateClick }: VersionRowProps) {
   const content = (
     <>
@@ -246,7 +255,7 @@ function UpdateBadge() {
         'bg-[var(--color-warning-subtle)] text-warning-text text-footnote whitespace-nowrap'
       }
     >
-      Update New Version
+      Update
     </span>
   );
 }

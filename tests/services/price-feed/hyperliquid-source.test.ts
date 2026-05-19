@@ -4,15 +4,15 @@
  *
  * WS path coverage
  * ----------------
- * The WS data-plane is exposed as `handleAssetCtxsEvent()` — a package-
+ * The WS data-plane is exposed as `handleAllDexsAssetCtxsEvent()` — a package-
  * visible method that mirrors BinanceSource.handleWsMessage. Tests drive
  * the real parsing/emission logic through it instead of reaching into
  * private fields, so future refactors to field names cannot silently
  * disable test coverage.
  *
- * The `assetCtxs` event is positional (ctxs[i] maps to universe[i]),
- * so each WS-driving test seeds the universe via `seedUniverse()`
- * before pushing ctxs.
+ * The `allDexsAssetCtxs` event is multi-dex: each tuple is [dex, ctxs[]]
+ * where ctxs[i] maps to universe[i] for that dex. Each WS-driving test
+ * seeds the universe via `seedDexUniverse()` before pushing ctxs.
  *
  * REST path coverage
  * ------------------
@@ -62,36 +62,68 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Seed the index→symbol universe map so positional `assetCtxs` events
- * decode correctly without needing a real getAllTickers round-trip.
- * Production seeds this from refreshUniverse() inside connectWs;
- * tests bypass that by injecting directly so the WS handler stays the
- * unit under test.
+ * Build a minimal tradingClient mock. `dexMap` seeds getDexUniverses() so
+ * positional `allDexsAssetCtxs` events decode correctly without a real
+ * getAllTickers round-trip. Production populates dexUniverses from
+ * ensureMeta(); tests bypass that by injecting directly so the WS handler
+ * stays the unit under test.
+ *
+ * Cast via `as unknown as ITradingClient` — tests only exercise the 4 methods
+ * the source needs; leaving the rest unimplemented is intentional for test
+ * isolation.
  */
-function seedUniverse(src: HyperliquidSource, symbols: readonly string[]): void {
-  (src as unknown as { universe: string[] }).universe = [...symbols];
+function mkTradingClient(opts: {
+  getAllTickers?: () => Promise<Ticker[]>;
+  dexMap?: Map<string, string[]>;
+}): import("../../../src/services/interfaces/trading-client.js").ITradingClient {
+  const dexMap = opts.dexMap ?? new Map<string, string[]>();
+  return {
+    async getAllTickers(): Promise<Ticker[]> {
+      return opts.getAllTickers ? opts.getAllTickers() : [];
+    },
+    async subscribeAllDexsAssetCtxs() {
+      return { unsubscribe: async () => {} };
+    },
+    getDexUniverses(): ReadonlyMap<string, ReadonlyArray<string>> {
+      return dexMap;
+    },
+    async ensureMeta(): Promise<void> {},
+  } as unknown as import("../../../src/services/interfaces/trading-client.js").ITradingClient;
+}
+
+/**
+ * Seed the native ("") dex universe so positional `allDexsAssetCtxs` events
+ * decode correctly. Tests that want multi-dex coverage build their own
+ * dexMap and pass it to mkTradingClient directly.
+ */
+function seedDexUniverse(src: HyperliquidSource, symbols: readonly string[]): void {
+  // Replace the tradingClient's getDexUniverses return value in-place by
+  // swapping the map reference that the source holds. We reach into the
+  // private field only because this is test infrastructure; the handler
+  // itself is not affected.
+  const tc = (src as unknown as { tradingClient: { getDexUniverses(): Map<string, string[]> } }).tradingClient;
+  const newMap = new Map<string, string[]>();
+  newMap.set("", [...symbols]);
+  // Patch getDexUniverses to return the new map for the lifetime of this call.
+  tc.getDexUniverses = () => newMap;
 }
 
 /**
  * Drive a WS tick through the real handler path so `lastWsTickAt` advances
- * the same way production code would. Replaces the previous whitebox
- * `simulateWsTick` helper — future field renames now surface as compile
- * errors rather than silently disabling the tests.
- *
- * Note: `handleAssetCtxsEvent` invokes the registered onTick, which the
- * tests bind to push into `received`. Callers don't need a `received`
- * argument for that reason — signature kept for readability at call
- * sites that want to assert the event reached downstream.
+ * the same way production code would. Seeds the native universe with just
+ * `symbol` at index 0 and fires one ctx entry.
  */
 function simulateWsTick(src: HyperliquidSource, symbol: string, price: number): void {
-  seedUniverse(src, [symbol]);
-  src.handleAssetCtxsEvent({ ctxs: [{ markPx: String(price) }] });
+  seedDexUniverse(src, [symbol]);
+  src.handleAllDexsAssetCtxsEvent({
+    ctxs: [["", [{ markPx: String(price) }]]],
+  });
 }
 
 describe("HyperliquidSource", () => {
   test("name / priority are stable", () => {
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
     });
     expect(src.name).toBe("hyperliquid");
@@ -100,7 +132,7 @@ describe("HyperliquidSource", () => {
 
   test("start() / stop() are idempotent and clean up cleanly", async () => {
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
       // Large staleMs so we don't accidentally activate REST
       wsStaleMs: 60_000,
@@ -117,7 +149,7 @@ describe("HyperliquidSource", () => {
     // Drive both paths via their real emission methods so this test cannot
     // silently pass after a rename/refactor of private state.
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return [mkTicker("BTC", 100)]; } },
+      tradingClient: mkTradingClient({ getAllTickers: async () => [mkTicker("BTC", 100)] }),
       logger: silent,
       // Large staleMs so REST doesn't auto-activate while we hand-drive.
       wsStaleMs: 60_000,
@@ -128,14 +160,14 @@ describe("HyperliquidSource", () => {
     expect(src.getLastTickAt()).toBe(0);
 
     // Drive a WS tick through the real handler.
-    seedUniverse(src, ["BTC"]);
+    seedDexUniverse(src, ["BTC"]);
     const beforeWs = Date.now();
-    src.handleAssetCtxsEvent({ ctxs: [{ markPx: "100" }] });
+    src.handleAllDexsAssetCtxsEvent({ ctxs: [["", [{ markPx: "100" }]]] });
     const afterWs = src.getLastTickAt();
     expect(afterWs).toBeGreaterThanOrEqual(beforeWs);
 
     // A subsequent unmappable event (NaN mark) must not advance the stamp.
-    src.handleAssetCtxsEvent({ ctxs: [{ markPx: "NaN" }] });
+    src.handleAllDexsAssetCtxsEvent({ ctxs: [["", [{ markPx: "NaN" }]]] });
     expect(src.getLastTickAt()).toBe(afterWs);
 
     await src.stop();
@@ -144,12 +176,9 @@ describe("HyperliquidSource", () => {
   test("WS stale from cold-start → internal REST activates after wsStaleMs", async () => {
     let restCallCount = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          restCallCount++;
-          return [mkTicker("BTC", 100)];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => { restCallCount++; return [mkTicker("BTC", 100)]; },
+      }),
       logger: silent,
       wsStaleMs: 20,
       restIntervalMs: 10,
@@ -174,12 +203,9 @@ describe("HyperliquidSource", () => {
   test("WS tick then silent → internal REST activates mid-flight", async () => {
     let restCallCount = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          restCallCount++;
-          return [mkTicker("BTC", 50)];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => { restCallCount++; return [mkTicker("BTC", 50)]; },
+      }),
       logger: silent,
       wsStaleMs: 20,
       restIntervalMs: 10,
@@ -204,9 +230,9 @@ describe("HyperliquidSource", () => {
 
   test("WS recovers + stable for wsStabilityMs → internal REST deactivates", async () => {
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() { return [mkTicker("BTC", 100)]; },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => [mkTicker("BTC", 100)],
+      }),
       logger: silent,
       wsStaleMs: 20,
       wsStabilityMs: 25,
@@ -235,12 +261,9 @@ describe("HyperliquidSource", () => {
   test("REST tick during WS outage keeps source healthy (getLastTickAt advances)", async () => {
     let lastFetchAt = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          lastFetchAt = Date.now();
-          return [mkTicker("BTC", 100)];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => { lastFetchAt = Date.now(); return [mkTicker("BTC", 100)]; },
+      }),
       logger: silent,
       wsStaleMs: 20,
       restIntervalMs: 10,
@@ -260,16 +283,16 @@ describe("HyperliquidSource", () => {
   test("both WS and REST silent → getLastTickAt freezes at last known", async () => {
     let callCount = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        // First call seeds the universe via refreshUniverse() during
-        // start(); second call is the cold-start REST sample we want to
-        // succeed; everything after fails so REST stops advancing.
-        async getAllTickers() {
+      tradingClient: mkTradingClient({
+        // call 1 = startup hydration (via onTick, not lastRestTickAt)
+        // call 2 = first cold-start REST fallback poll (succeeds → advances lastRestTickAt)
+        // call 3+ = subsequent REST polls (all fail so lastRestTickAt stops advancing)
+        getAllTickers: async () => {
           callCount++;
           if (callCount <= 2) return [mkTicker("BTC", 100)];
           throw new Error("network down");
         },
-      },
+      }),
       logger: silent,
       wsStaleMs: 20,
       restIntervalMs: 10,
@@ -277,8 +300,8 @@ describe("HyperliquidSource", () => {
     });
     await src.start(() => { /* noop */ });
 
-    // Let cold-start activate REST and take one successful sample.
-    await sleep(30);
+    // Let cold-start activate REST and take one successful sample via fallback loop.
+    await sleep(50);
     const snapshot = src.getLastTickAt();
     expect(snapshot).toBeGreaterThan(0);
 
@@ -292,12 +315,9 @@ describe("HyperliquidSource", () => {
   test("stop() while REST is polling halts further polls", async () => {
     let callCount = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          callCount++;
-          return [mkTicker("BTC", 100)];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => { callCount++; return [mkTicker("BTC", 100)]; },
+      }),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 5,
@@ -317,13 +337,13 @@ describe("HyperliquidSource", () => {
   test("REST error does not kill the source — next poll still runs", async () => {
     let callCount = 0;
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => {
           callCount++;
           if (callCount === 1) throw new Error("boom");
           return [mkTicker("BTC", 100)];
         },
-      },
+      }),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 20,
@@ -342,15 +362,13 @@ describe("HyperliquidSource", () => {
 
   test("REST emits raw HL symbols — no mapping applied (HL is canonical)", async () => {
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          return [
-            mkTicker("BTC", 60000),
-            mkTicker("kPEPE", 0.02),    // k-prefix stays k-prefix
-            mkTicker("1000SHIB", 0.025), // 1000-prefix stays 1000-prefix
-          ];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => [
+          mkTicker("BTC", 60000),
+          mkTicker("kPEPE", 0.02),    // k-prefix stays k-prefix
+          mkTicker("1000SHIB", 0.025), // 1000-prefix stays 1000-prefix
+        ],
+      }),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 20,
@@ -372,7 +390,7 @@ describe("HyperliquidSource", () => {
     // upgrades). Before the fix, lastRestTickAt advanced on HTTP
     // success, masking the failure and blocking composite failover.
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 15,
@@ -391,11 +409,9 @@ describe("HyperliquidSource", () => {
     // Same contract, different mechanism: tickers returned but every markPrice
     // is NaN/Infinity. Source must report unhealthy.
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          return [mkTicker("BTC", NaN), mkTicker("ETH", Infinity)];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => [mkTicker("BTC", NaN), mkTicker("ETH", Infinity)],
+      }),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 15,
@@ -408,9 +424,9 @@ describe("HyperliquidSource", () => {
     await src.stop();
   });
 
-  test("handleAssetCtxsEvent parses string mark prices and emits ticks", async () => {
+  test("handleAllDexsAssetCtxsEvent parses string mark prices and emits ticks", async () => {
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
       wsStaleMs: 60_000,
       healthCheckIntervalMs: 10,
@@ -418,9 +434,9 @@ describe("HyperliquidSource", () => {
     const received: Array<[string, number]> = [];
     await src.start((sym, price) => received.push([sym, price]));
 
-    seedUniverse(src, ["BTC", "ETH", "kPEPE"]);
-    src.handleAssetCtxsEvent({
-      ctxs: [{ markPx: "60000" }, { markPx: "3000" }, { markPx: "0.02" }],
+    seedDexUniverse(src, ["BTC", "ETH", "kPEPE"]);
+    src.handleAllDexsAssetCtxsEvent({
+      ctxs: [["", [{ markPx: "60000" }, { markPx: "3000" }, { markPx: "0.02" }]]],
     });
     expect(received).toContainEqual(["BTC", 60000]);
     expect(received).toContainEqual(["ETH", 3000]);
@@ -430,9 +446,9 @@ describe("HyperliquidSource", () => {
     await src.stop();
   });
 
-  test("handleAssetCtxsEvent drops NaN/Infinity / null mark prices without emitting", async () => {
+  test("handleAllDexsAssetCtxsEvent drops NaN/Infinity / null mark prices without emitting", async () => {
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
       wsStaleMs: 60_000,
       healthCheckIntervalMs: 10,
@@ -440,18 +456,18 @@ describe("HyperliquidSource", () => {
     const received: Array<[string, number]> = [];
     await src.start((sym, price) => received.push([sym, price]));
 
-    seedUniverse(src, ["BAD1", "BAD2", "BAD3"]);
+    seedDexUniverse(src, ["BAD1", "BAD2", "BAD3"]);
     // Only bad entries — lastWsTickAt must NOT advance (anyEmitted guard).
-    src.handleAssetCtxsEvent({
-      ctxs: [{ markPx: "NaN" }, { markPx: "Infinity" }, { markPx: null }],
+    src.handleAllDexsAssetCtxsEvent({
+      ctxs: [["", [{ markPx: "NaN" }, { markPx: "Infinity" }, { markPx: null }]]],
     });
     expect(received).toEqual([]);
     expect(src.getLastTickAt()).toBe(0);
 
     // Mix of good and bad — good one emits, lastWsTickAt advances, BADs dropped.
-    seedUniverse(src, ["BAD", "BTC"]);
-    src.handleAssetCtxsEvent({
-      ctxs: [{ markPx: "NaN" }, { markPx: "60000" }],
+    seedDexUniverse(src, ["BAD", "BTC"]);
+    src.handleAllDexsAssetCtxsEvent({
+      ctxs: [["", [{ markPx: "NaN" }, { markPx: "60000" }]]],
     });
     expect(received).toEqual([["BTC", 60000]]);
     expect(src.getLastTickAt()).toBeGreaterThan(0);
@@ -459,11 +475,11 @@ describe("HyperliquidSource", () => {
     await src.stop();
   });
 
-  test("handleAssetCtxsEvent accepts numeric mark prices (not just strings)", async () => {
+  test("handleAllDexsAssetCtxsEvent accepts numeric mark prices (not just strings)", async () => {
     // Defensive: the SDK types markPx as string, but accepting numbers
     // too costs nothing and protects against future SDK changes.
     const src = new HyperliquidSource({
-      tradingClient: { async getAllTickers() { return []; } },
+      tradingClient: mkTradingClient({}),
       logger: silent,
       wsStaleMs: 60_000,
       healthCheckIntervalMs: 10,
@@ -471,25 +487,52 @@ describe("HyperliquidSource", () => {
     const received: Array<[string, number]> = [];
     await src.start((sym, price) => received.push([sym, price]));
 
-    seedUniverse(src, ["BTC"]);
-    src.handleAssetCtxsEvent({ ctxs: [{ markPx: 60000 as unknown as string }] });
+    seedDexUniverse(src, ["BTC"]);
+    src.handleAllDexsAssetCtxsEvent({ ctxs: [["", [{ markPx: 60000 as unknown as string }]]] });
     expect(received).toEqual([["BTC", 60000]]);
+
+    await src.stop();
+  });
+
+  test("handleAllDexsAssetCtxsEvent handles multiple dexes in one frame", async () => {
+    // Verifies the multi-dex path: native "" + one HIP-3 dex in the same event.
+    const dexMap = new Map<string, string[]>();
+    dexMap.set("", ["BTC", "ETH"]);
+    dexMap.set("xyz", ["xyz:AAPL", "xyz:TSLA"]);
+    const src = new HyperliquidSource({
+      tradingClient: mkTradingClient({ dexMap }),
+      logger: silent,
+      wsStaleMs: 60_000,
+      healthCheckIntervalMs: 10,
+    });
+    const received: Array<[string, number]> = [];
+    await src.start((sym, price) => received.push([sym, price]));
+
+    src.handleAllDexsAssetCtxsEvent({
+      ctxs: [
+        ["", [{ markPx: "60000" }, { markPx: "3000" }]],
+        ["xyz", [{ markPx: "192.5" }, { markPx: "250.0" }]],
+      ],
+    });
+    expect(received).toContainEqual(["BTC", 60000]);
+    expect(received).toContainEqual(["ETH", 3000]);
+    expect(received).toContainEqual(["xyz:AAPL", 192.5]);
+    expect(received).toContainEqual(["xyz:TSLA", 250.0]);
+    expect(src.getLastTickAt()).toBeGreaterThan(0);
 
     await src.stop();
   });
 
   test("REST drops non-finite markPrice entries", async () => {
     const src = new HyperliquidSource({
-      tradingClient: {
-        async getAllTickers() {
-          return [
-            mkTicker("BTC", 60000),
-            mkTicker("BADNAN", NaN),
-            mkTicker("BADINF", Infinity),
-            mkTicker("ETH", 3000),
-          ];
-        },
-      },
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => [
+          mkTicker("BTC", 60000),
+          mkTicker("BADNAN", NaN),
+          mkTicker("BADINF", Infinity),
+          mkTicker("ETH", 3000),
+        ],
+      }),
       logger: silent,
       wsStaleMs: 10,
       restIntervalMs: 20,
@@ -504,5 +547,54 @@ describe("HyperliquidSource", () => {
     expect(received).toContainEqual(["ETH", 3000]);
     expect(received.find((r) => r[0] === "BADNAN")).toBeUndefined();
     expect(received.find((r) => r[0] === "BADINF")).toBeUndefined();
+  });
+
+  test("start() calls getAllTickers and emits each ticker through onTick (REST hydration)", async () => {
+    // By the time start() resolves, the onTick callback should have been called
+    // for each valid ticker returned by getAllTickers — this is the hydration path.
+    const hydrationTickers = [
+      mkTicker("BTC", 60000),
+      mkTicker("ETH", 3000),
+      mkTicker("SOL", 150),
+    ];
+    const src = new HyperliquidSource({
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => hydrationTickers,
+      }),
+      logger: silent,
+      wsStaleMs: 60_000,
+      healthCheckIntervalMs: 100,
+    });
+    const received: Array<[string, number]> = [];
+    await src.start((sym, price) => received.push([sym, price]));
+
+    // Hydration runs inside start() — no sleep needed.
+    expect(received).toContainEqual(["BTC", 60000]);
+    expect(received).toContainEqual(["ETH", 3000]);
+    expect(received).toContainEqual(["SOL", 150]);
+
+    await src.stop();
+  });
+
+  test("start() does NOT throw if getAllTickers rejects — feed comes up degraded but functional", async () => {
+    // REST hydration failure must be swallowed; WS path keeps working.
+    const wsReceived: Array<[string, number]> = [];
+    const src = new HyperliquidSource({
+      tradingClient: mkTradingClient({
+        getAllTickers: async () => { throw new Error("network error"); },
+      }),
+      logger: silent,
+      wsStaleMs: 60_000,
+      healthCheckIntervalMs: 100,
+    });
+
+    // Must not throw even though getAllTickers rejects.
+    await expect(src.start((sym, price) => wsReceived.push([sym, price]))).resolves.toBeUndefined();
+
+    // WS is still functional — simulate a tick after degraded startup.
+    simulateWsTick(src, "BTC", 70000);
+    expect(wsReceived).toContainEqual(["BTC", 70000]);
+
+    await src.stop();
   });
 });

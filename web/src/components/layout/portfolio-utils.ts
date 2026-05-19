@@ -31,9 +31,14 @@ export interface PositionLike {
 
 export function estimatePnl(p: PositionLike, livePrice: number | undefined): { pnl: number; pct: number } {
   if (livePrice === undefined) return { pnl: p.unrealizedPnl, pct: p.unrealizedPnlPct };
+  // Recompute the USD PnL from the live price for second-by-second responsiveness.
+  // The percentage stays at the API-supplied `unrealizedPnlPct`: on live, that is
+  // Hyperliquid's `returnOnEquity`, which folds in funding/fee accruals that a
+  // client-side (livePrice - entry) * size simply cannot reproduce. On paper, the
+  // engine already computes it as (pnl / margin) * 100. Trusting the upstream pct
+  // is what keeps Ghost's per-position ROE matching HL's own UI.
   const pnl = p.side === 'long' ? (livePrice - p.entryPrice) * p.size : (p.entryPrice - livePrice) * p.size;
-  const pct = p.margin > 0 ? (pnl / p.margin) * 100 : 0;
-  return { pnl, pct };
+  return { pnl, pct: p.unrealizedPnlPct };
 }
 
 export function truncateAddr(addr: string): string {

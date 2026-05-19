@@ -11,14 +11,18 @@ export interface PriceCacheEntry {
   price: number;
   /** Wall-clock when the tick landed in the cache. */
   timestamp: number;
+  /** Previous-day close price for 24 h change calculation. Present only when
+   *  the source that emitted this tick carries prevDayPx (HL does; Binance WS
+   *  mark-price stream does not). */
+  prevDayPrice?: number;
 }
 
 export class PriceCache {
   private readonly prices = new Map<string, PriceCacheEntry>();
 
   /** Record the latest tick for a symbol. */
-  set(symbol: string, price: number): void {
-    this.prices.set(symbol, { price, timestamp: Date.now() });
+  set(symbol: string, price: number, prevDayPrice?: number): void {
+    this.prices.set(symbol, { price, timestamp: Date.now(), prevDayPrice });
   }
 
   /**

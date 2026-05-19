@@ -40,6 +40,8 @@ function makeRegistry(opts: { rssDiscovery?: Partial<RssDiscoveryService> | null
     preferenceStore: {} as any,
     watchlist: {} as any,
     logger: noopLogger,
+    tokensSnapshot: { build: () => ({ tokens: [], prices: {}, prevDayPrices: {}, maxLeverages: {} }) } as any,
+    priceCache: { get: () => undefined, set: () => {} } as any,
   });
   return reg;
 }

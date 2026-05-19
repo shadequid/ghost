@@ -6,7 +6,13 @@
  * The Composite orchestrates multiple sources with priority-based failover.
  */
 
-export type PriceTickCallback = (symbol: string, price: number) => void;
+/**
+ * Callback invoked by a PriceSource when a new tick arrives.
+ * `prevDayPrice` is optional — sources that do not have it (e.g. Binance WS
+ * mark-price stream) omit it; the HL source includes it from both REST ticks
+ * and `allDexsAssetCtxs` frames (prevDayPx field).
+ */
+export type PriceTickCallback = (symbol: string, price: number, prevDayPrice?: number) => void;
 
 export interface PriceSource {
   /** Stable identifier — used in logs and primary-selection comparisons. */

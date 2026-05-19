@@ -15,7 +15,8 @@ export type ObserverEventType =
   | "order_canceled"
   | "liquidation_risk"
   | "pnl_snapshot"
-  | "price_alert";
+  | "price_alert"
+  | "portfolio_pnl_drift";
 
 interface BaseEvent {
   type: ObserverEventType;
@@ -145,6 +146,23 @@ export interface PriceAlertEvent extends BaseEvent {
   note?: string;
 }
 
+/**
+ * Account-wide unrealized PnL has drifted materially while the user has been
+ * idle for hours. Emitted by `pnl-drift.ts` once gating passes (threshold +
+ * idle + cooldown). One per tick at most.
+ */
+export interface PortfolioPnlDriftEvent extends BaseEvent {
+  type: "portfolio_pnl_drift";
+  /** Account total unrealized PnL at the previous drift baseline. */
+  fromPnl: number;
+  /** Account total unrealized PnL right now. */
+  toPnl: number;
+  /** Signed fractional change vs baseline. */
+  deltaPct: number;
+  /** How long the user has been silent in chat at decision time. */
+  idleMs: number;
+}
+
 export type ObserverEvent =
   | PositionClosedEvent
   | TpHitEvent
@@ -154,4 +172,5 @@ export type ObserverEvent =
   | OrderCanceledEvent
   | LiquidationRiskEvent
   | PnlSnapshotEvent
-  | PriceAlertEvent;
+  | PriceAlertEvent
+  | PortfolioPnlDriftEvent;
