@@ -24,7 +24,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 **1. Install Ghost**
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+bun install -g "@hyperflow.fun/ghost"
 ```
 
 **2. Onboard**
@@ -105,25 +105,9 @@ loopback only (`gateway.host=127.0.0.1`), so the dashboard is reachable from
 the same machine but invisible to the network — safe to leave as-is for local
 use.
 
-To expose Ghost over the network (LAN, VPS, public IP), opt in explicitly by
-setting **both** in `~/.ghost/config.json`:
-
-```jsonc
-{
-  "gateway": {
-    "host": "0.0.0.0",
-    "allowPublicBind": true
-  }
-}
-```
-
-The daemon refuses to start with a non-loopback host unless
-`allowPublicBind=true`, so accidental exposure can't happen. Before flipping
-the flag, harden access externally — Cloudflare Tunnel + Access, Tailscale
-Serve, or ngrok OAuth are the recommended options.
-
-See [docs/security/network-exposure.md](docs/security/network-exposure.md) for
-detailed recipes and what to avoid.
+To reach the dashboard from another device, put an authenticated tunnel
+(Tailscale Serve, ngrok OAuth, mTLS proxy) in front of `127.0.0.1:15401`.
+See [docs/security/network-exposure.md](docs/security/network-exposure.md).
 
 ## License
 

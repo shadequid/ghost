@@ -2,7 +2,7 @@
 
 ## Overview
 
-Ghost exposes a WebSocket-based JSON-RPC protocol for client integrations (web dashboard, Telegram bots, automation scripts, third-party dashboards). The gateway runs on `0.0.0.0:15401` by default (configurable via `config.gateway.host/port`). Loopback bind enforced unless `allowPublicBind=true`.
+Ghost exposes a WebSocket-based JSON-RPC protocol for client integrations (web dashboard, Telegram bots, automation scripts, third-party dashboards). The gateway runs on `127.0.0.1:15401` by default (configurable via `config.gateway.host/port`). Loopback bind is enforced — the daemon refuses to start on any non-loopback host.
 
 **WS-first design**: REST surface limited to wallet pairing + chart data. All bidirectional communication flows over WebSocket.
 
@@ -235,8 +235,7 @@ Events are emitted to all subscribed clients. Each event has a type, optional pa
 ### Gateway Security Model
 
 - **No in-app sessions**: Gateway has no login/logout. Client identity is managed by OS-level access (firewall, VPN, IAM tunnel).
-- **Loopback bind default**: Listening on `127.0.0.1:15401` by default — accessible only from localhost.
-- **Public bind gated**: Non-loopback bind (e.g., `0.0.0.0:15401`) requires `config.gateway.allowPublicBind=true`.
+- **Loopback bind enforced**: Listening on `127.0.0.1:15401` by default — accessible only from localhost. The daemon refuses to start on any non-loopback host.
 - **Optional token**: ConnectFrame accepts a `token` field for future extensibility (currently unused).
 
 ### Channel Pairing Flow

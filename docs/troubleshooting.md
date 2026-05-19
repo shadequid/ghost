@@ -91,7 +91,7 @@ curl -s http://localhost:15401/health
 # Expected: {"status": "ok"} or similar
 ```
 
-For public binding, see [Security: Network Exposure](./security/network-exposure.md) for Cloudflare Tunnel, Tailscale, ngrok recipes.
+To reach the dashboard from another device, see [Security: Network Exposure](./security/network-exposure.md) for Tailscale, ngrok OAuth, and mTLS recipes.
 
 ## Provider-Specific Gotchas
 

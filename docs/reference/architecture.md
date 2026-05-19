@@ -78,7 +78,7 @@ graph TB
 
 1. **Guard** (`src/daemon/index.ts:139`): Check running OS service; if active, prompt user (logs, restart, stop, abort)
 2. **Create Runtime** (`src/daemon/index.ts:143`): Call `createRuntime()` to wire all subsystems
-3. **Boot Guard** (`src/daemon/index.ts:177`): Refuse public bind unless `allowPublicBind=true`
+3. **Boot Guard** (`src/daemon/index.ts:177`): Enforce loopback bind — refuse to start on a non-loopback host
 4. **Auth Display** (`src/daemon/index.ts:189`): Determine auth status for banner
 5. **Telegram** (`src/daemon/index.ts:202`): Activate if bot token present
 6. **Gateway** (`src/daemon/index.ts:223`): Spin up ElysiaJS app + WS + REST
