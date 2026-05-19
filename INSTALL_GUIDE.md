@@ -36,7 +36,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 Then install Ghost globally:
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+bun install -g "@hyperflow.fun/ghost"
 ```
 
 Verify:
@@ -152,10 +152,6 @@ ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
 
 The Ghost gateway has no built-in authentication. By default it binds to
 loopback only (`127.0.0.1:15401`), reachable only from the same machine.
-Exposing it over the network requires setting **both** `gateway.host=0.0.0.0`
-and `gateway.allowPublicBind=true` in `~/.ghost/config.json`; without the
-opt-in flag the daemon refuses to start. See
-[docs/security/network-exposure.md](docs/security/network-exposure.md) for
-tunnel recipes (Cloudflare, Tailscale, ngrok) before flipping the switch.
+Keep this default — it's the safe option for local use.
 
 Without `--provider`/`--model`, `ghost onboard` runs the interactive wizard.

@@ -14,7 +14,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 ## Install
 
 ```bash
-bun install -g @hyperflow.fun/ghost
+bun install -g "@hyperflow.fun/ghost"
 ```
 
 This installs the `ghost` command globally. If the command isn't found after install, restart your terminal so the new PATH entry is picked up.
@@ -81,7 +81,7 @@ Your config, wallets, chat history, memory, and skills under `~/.ghost/` are pre
 If `ghost update` fails, you can always reinstall manually:
 
 ```bash
-bun install -g @hyperflow.fun/ghost@latest
+bun install -g "@hyperflow.fun/ghost@latest"
 ```
 
 ## Change Provider / Model

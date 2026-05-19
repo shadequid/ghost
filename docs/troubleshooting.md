@@ -91,8 +91,6 @@ curl -s http://localhost:15401/health
 # Expected: {"status": "ok"} or similar
 ```
 
-For public binding, see [Security: Network Exposure](./security/network-exposure.md) for Cloudflare Tunnel, Tailscale, ngrok recipes.
-
 ## Provider-Specific Gotchas
 
 ### Claude Code (claude-cli)

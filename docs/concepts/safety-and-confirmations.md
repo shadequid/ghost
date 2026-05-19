@@ -62,15 +62,7 @@ Most traders run **Interactive** mode — full control with Ghost's advice.
 
 ## Network Exposure: Loopback by Default
 
-Ghost's gateway (the web dashboard and API) listens on your local machine only (`127.0.0.1:15401`). 
-
-**Default behavior**: Only you can access the dashboard and API.
-
-**Opt-in public access**: If you want to reach Ghost from another device, you must:
-1. Enable public bind: `ghost config --set gateway.allowPublicBind=true`
-2. **Use an authenticated tunnel** (Cloudflare Tunnel, Tailscale, SSH tunnel)
-
-Never expose Ghost's gateway directly to the internet without authentication. See [Network Exposure](../security/network-exposure.md) for secure recipes (Cloudflare + Access, Tailscale Serve).
+Ghost's gateway (the web dashboard and API) listens on your local machine only (`127.0.0.1:15401`). Only you, on the same machine, can access the dashboard and API. See [Network Exposure](../security/network-exposure.md).
 
 ## Credentials at Rest: Encrypted
 

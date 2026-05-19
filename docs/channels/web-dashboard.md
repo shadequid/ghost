@@ -47,4 +47,4 @@ If the bot is paired, every trade approval card in chat also lands in your Teleg
 
 ## Network exposure
 
-Ghost binds to `0.0.0.0:15401` by default — no in-app auth. Fine on a trusted home network. On a VPS or anything reachable from the internet, put a tunnel in front. See [network-exposure.md](../security/network-exposure.md) for Cloudflare Tunnel + Access, Tailscale, and ngrok OAuth recipes.
+Ghost binds to `127.0.0.1:15401` by default — loopback only, reachable from the same machine. See [network-exposure.md](../security/network-exposure.md) for details.
