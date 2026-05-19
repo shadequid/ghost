@@ -2,7 +2,7 @@
  * Chat empty state + starter suggestion chips.
  * Visual reference: Figma node 227:746 (Welcome State + Quick Actions).
  */
-import welcomeIllustration from '@/assets/welcome-illustration.svg';
+import { GlobeLoader } from './GlobeLoader';
 
 const STARTER_SUGGESTIONS = [
   'What can you do?',
@@ -60,15 +60,7 @@ export function EmptyState({ hasWallet }: { hasWallet?: boolean }) {
   return (
     <div className="flex flex-col items-center gap-8 py-10 px-5">
       <div className="flex flex-col items-center gap-4">
-        <img
-          src={welcomeIllustration}
-          alt=""
-          width={334}
-          height={225}
-          className="block select-none"
-          draggable={false}
-          aria-hidden="true"
-        />
+        <GlobeLoader />
         <p className="text-heading-md text-text-primary whitespace-nowrap">
           Ghost is ready
         </p>

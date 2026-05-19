@@ -31,18 +31,13 @@
  * each source owns its intra-exchange resilience.
  */
 
-// MUST import before WebSocketTransport. Patches globalThis.WebSocket so the
-// lib's `binaryType = 'blob'` call doesn't throw on Bun.
-import "./bun-ws-compat.js";
-import { WebSocketTransport, SubscriptionClient } from "@nktkas/hyperliquid";
-import type { ISubscription } from "@nktkas/hyperliquid";
 import type { Logger } from "pino";
-import type { ITradingClient } from "../../interfaces/trading-client.js";
+import type { ITradingClient, ITradingSubscription } from "../../interfaces/trading-client.js";
 import type { PriceSource, PriceTickCallback } from "../types.js";
 
 export interface HyperliquidSourceOptions {
   testnet?: boolean;
-  tradingClient: Pick<ITradingClient, "getAllTickers">;
+  tradingClient: ITradingClient;
   logger: Logger;
   /** REST poll interval while in fallback mode. Default 5s. */
   restIntervalMs?: number;
@@ -64,7 +59,7 @@ export class HyperliquidSource implements PriceSource {
   readonly priority = 0;
 
   private readonly testnet: boolean;
-  private readonly tradingClient: Pick<ITradingClient, "getAllTickers">;
+  private readonly tradingClient: ITradingClient;
   private readonly log: Logger;
   private readonly restIntervalMs: number;
   private readonly wsStaleMs: number;
@@ -75,21 +70,10 @@ export class HyperliquidSource implements PriceSource {
   private stopped = true;
 
   // --- WS state ---
-  private transport: WebSocketTransport | null = null;
-  private client: SubscriptionClient | null = null;
-  private subscription: ISubscription | null = null;
+  private wsSubscription: ITradingSubscription | null = null;
   private wsRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private wsRetryCount = 0;
   private lastWsTickAt = 0;
-  /**
-   * Index → symbol map for the perp universe. The `assetCtxs` WS event
-   * carries a positional `ctxs[]` array — symbols come from a side
-   * fetch on first connect (and on retries). HL appends new perps to
-   * the tail, so existing indices stay stable; the worst case for a
-   * stale snapshot is a newly listed perp not emitting until the next
-   * connect cycle.
-   */
-  private universe: string[] = [];
 
   // --- REST state ---
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -105,6 +89,7 @@ export class HyperliquidSource implements PriceSource {
   private startedAt = 0;
 
   constructor(opts: HyperliquidSourceOptions) {
+    // testnet stored for future use (e.g. if tradingClient exposes a testnet flag)
     this.testnet = opts.testnet ?? false;
     this.tradingClient = opts.tradingClient;
     this.log = opts.logger;
@@ -136,13 +121,42 @@ export class HyperliquidSource implements PriceSource {
       restIntervalMs: this.restIntervalMs,
     }, "hyperliquid source starting (WS primary, REST dormant)");
 
+    // Connect WS first so it can stream deltas while REST hydration is in flight.
     await this.connectWs();
-    // Raced with stop() during the WS handshake — bail before arming the
-    // reconcile loop so we don't leave a live setInterval on a stopped source.
+    // Raced with stop() during the WS handshake — bail before REST hydration
+    // and arming the reconcile loop so we don't leave live timers on a stopped source.
+    if (this.stopped) return;
+
+    await this.hydrateFromRest();
+
     if (this.stopped) return;
 
     // Arm the internal fallback loop.
     this.healthTimer = setInterval(() => { this.reconcileTransports(); }, this.healthCheckIntervalMs);
+  }
+
+  /**
+   * One-shot REST snapshot at startup. Pushes every ticker through the normal
+   * onTick path so the cache is hot before start() resolves — no gateway-level
+   * gate needed. Failure is non-fatal: WS will catch up.
+   */
+  private async hydrateFromRest(): Promise<void> {
+    try {
+      const tickers = await this.tradingClient.getAllTickers();
+      if (this.stopped) return;
+      const callback = this.onTick;
+      if (!callback) return;
+      for (const t of tickers) {
+        if (!Number.isFinite(t.markPrice)) continue;
+        const prev = Number.isFinite(t.prevDayPrice) && t.prevDayPrice > 0
+          ? t.prevDayPrice
+          : undefined;
+        callback(t.symbol, t.markPrice, prev);
+      }
+      this.log.info({ count: tickers.length }, "hyperliquid source: REST hydration complete");
+    } catch (err) {
+      this.log.warn({ err }, "hyperliquid source: REST hydration failed; relying on WS");
+    }
   }
 
   async stop(): Promise<void> {
@@ -167,121 +181,72 @@ export class HyperliquidSource implements PriceSource {
 
   private async connectWs(): Promise<void> {
     if (this.stopped) return;
-    // Allocate to locals so that if stop() races during the awaited handshake
-    // we can tear down the live subscription/transport without leaking it
-    // through the instance fields that cleanupWs() has already nulled.
-    let transport: WebSocketTransport | null = null;
-    let client: SubscriptionClient | null = null;
-    let subscription: ISubscription | null = null;
     try {
-      transport = new WebSocketTransport({ isTestnet: this.testnet });
-      client = new SubscriptionClient({ transport });
+      // Ensure meta is loaded so dexUniverses is populated before the first
+      // allDexsAssetCtxs frame arrives. ensureMeta is single-flight so
+      // concurrent callers are fine.
+      await this.tradingClient.ensureMeta();
 
-      // Refresh the index→symbol mapping before subscribing so the very
-      // first ctx[] frame can be decoded. getAllTickers is the cheapest
-      // way to get the perp universe in current order — same source the
-      // REST fallback already uses, so no new API surface.
-      await this.refreshUniverse();
+      if (this.stopped) return;
 
-      subscription = await client.assetCtxs((event) => this.handleAssetCtxsEvent(event));
+      const sub = await this.tradingClient.subscribeAllDexsAssetCtxs(
+        (event) => this.handleAllDexsAssetCtxsEvent(event),
+      );
 
       if (this.stopped) {
-        // Raced with stop() during the await — the subscription is live but
-        // no longer owned by this source (cleanupWs already ran). Tear down
-        // locally and bail so we don't leak the socket.
-        try { await subscription.unsubscribe(); } catch { /* ignore */ }
-        try { await transport.close(); } catch { /* ignore */ }
+        // Raced with stop() during the await — tear down immediately.
+        try { await sub.unsubscribe(); } catch { /* ignore */ }
         return;
       }
 
-      this.transport = transport;
-      this.client = client;
-      this.subscription = subscription;
+      this.wsSubscription = sub;
       this.wsRetryCount = 0;
-      this.log.info("hyperliquid source: WS connected");
-
-      this.subscription.failureSignal.addEventListener("abort", () => {
-        if (this.stopped) return;
-        this.log.warn("hyperliquid source: WS subscription failed, scheduling retry");
-        this.scheduleWsRetry();
-      });
-
-      // Belt-and-braces: subscription.failureSignal fires only when the SDK's
-      // ReconnectingWebSocket gives up after its internal retry budget. Listen
-      // to the underlying socket's `terminate` event too, which fires on
-      // permanent termination regardless of internal retry state. Also log
-      // transport-level `error` events so ops can diagnose WS flakes (the
-      // SDK swallows these otherwise).
-      this.transport.socket.addEventListener("terminate", (ev) => {
-        if (this.stopped) return;
-        this.log.warn(
-          { reason: ev.detail?.code, cause: serializeError(ev.detail?.cause) },
-          "hyperliquid source: WS transport terminated, scheduling retry",
-        );
-        this.scheduleWsRetry();
-      });
-      this.transport.socket.addEventListener("error", (ev) => {
-        if (this.stopped) return;
-        this.log.warn(
-          { event: serializeWsErrorEvent(ev) },
-          "hyperliquid source: WS transport error",
-        );
-      });
+      this.log.info("hyperliquid source: WS connected (allDexsAssetCtxs)");
     } catch (err) {
       this.log.warn({ err }, "hyperliquid source: WS failed to connect");
-      // Best-effort cleanup of anything allocated before the throw. cleanupWs
-      // operates on instance state; these locals may not have been assigned
-      // into it yet, so clean them directly.
-      if (subscription) { try { await subscription.unsubscribe(); } catch { /* ignore */ } }
-      if (transport) { try { await transport.close(); } catch { /* ignore */ } }
       await this.cleanupWs();
       this.scheduleWsRetry();
     }
   }
 
   /**
-   * Refresh the cached perp universe (positional symbol map for
-   * `assetCtxs`). Called on every (re)connect so a long-running daemon
-   * eventually picks up newly listed perps. Cheap — same `getAllTickers`
-   * call the REST fallback uses.
+   * Handle one `allDexsAssetCtxs` event. The event carries all dexes
+   * (native "" + every HIP-3 dex) in a single frame. Each tuple is
+   * [dex, ctxs[]] where ctxs is positional — index i maps to the i-th
+   * symbol in tradingClient.getDexUniverses().get(dex).
+   *
+   * Exposed as a non-private method so unit tests can drive the parsing
+   * path without a live WS connection.
    */
-  private async refreshUniverse(): Promise<void> {
-    try {
-      const tickers = await this.tradingClient.getAllTickers();
-      this.universe = tickers.map((t) => t.symbol);
-    } catch (err) {
-      this.log.warn({ err }, "hyperliquid source: universe refresh failed");
-      // Don't clear an existing universe on failure — better to emit
-      // against a slightly stale snapshot than to drop every tick.
-    }
-  }
-
-  /**
-   * Handle one `assetCtxs` event. Extracted from the subscription
-   * callback so unit tests can drive the real parsing path without
-   * standing up a real @nktkas/hyperliquid SubscriptionClient. Mirrors
-   * BinanceSource.handleWsMessage — both sources expose their WS
-   * data-plane as a package-visible method.
-   */
-  handleAssetCtxsEvent(event: { ctxs: Array<{ markPx?: string | number | null }> }): void {
+  handleAllDexsAssetCtxsEvent(
+    event: { ctxs: ReadonlyArray<readonly [dex: string, ctxs: ReadonlyArray<{ markPx?: string | number | null; prevDayPx?: string | number | null; [k: string]: unknown }>]> },
+  ): void {
     if (this.stopped) return;
     const callback = this.onTick;
     if (!callback) return;
+
+    const dexUniverses = this.tradingClient.getDexUniverses();
     const now = Date.now();
     let anyEmitted = false;
-    for (let i = 0; i < event.ctxs.length; i++) {
-      const symbol = this.universe[i];
-      if (!symbol) continue; // ctx beyond cached universe — skip silently
-      const raw = event.ctxs[i]?.markPx;
-      if (raw === null || raw === undefined) continue;
-      const mark = typeof raw === "string" ? parseFloat(raw) : Number(raw);
-      if (!Number.isFinite(mark)) continue;
-      callback(symbol, mark);
-      anyEmitted = true;
+
+    for (const [dex, ctxs] of event.ctxs) {
+      const universe = dexUniverses.get(dex) ?? [];
+      for (let i = 0; i < ctxs.length; i++) {
+        const symbol = universe[i];
+        if (!symbol) continue;
+        const ctx = ctxs[i];
+        const raw = ctx?.markPx;
+        if (raw === null || raw === undefined) continue;
+        const mark = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(mark)) continue;
+        const prevRaw = ctx?.prevDayPx;
+        const prevDay = prevRaw != null
+          ? (typeof prevRaw === "string" ? parseFloat(prevRaw) : Number(prevRaw))
+          : undefined;
+        callback(symbol, mark, Number.isFinite(prevDay) ? prevDay : undefined);
+        anyEmitted = true;
+      }
     }
-    // Advance `lastWsTickAt` only if at least one entry was emittable —
-    // symmetric with BinanceSource.handleWsMessage so the two sources agree
-    // on "did we actually deliver a downstream tick this frame?".
     if (anyEmitted) this.lastWsTickAt = now;
   }
 
@@ -299,15 +264,10 @@ export class HyperliquidSource implements PriceSource {
   }
 
   private async cleanupWs(): Promise<void> {
-    if (this.subscription) {
-      try { await this.subscription.unsubscribe(); } catch { /* ignore */ }
-      this.subscription = null;
+    if (this.wsSubscription) {
+      try { await this.wsSubscription.unsubscribe(); } catch { /* ignore */ }
+      this.wsSubscription = null;
     }
-    if (this.transport) {
-      try { await this.transport.close(); } catch { /* ignore */ }
-      this.transport = null;
-    }
-    this.client = null;
   }
 
   // --- REST transport -------------------------------------------------------
@@ -346,7 +306,10 @@ export class HyperliquidSource implements PriceSource {
       for (const t of tickers) {
         if (this.stopped || !this.restPolling) return;
         if (!Number.isFinite(t.markPrice)) continue;
-        callback(t.symbol, t.markPrice);
+        const prevDay = Number.isFinite(t.prevDayPrice) && t.prevDayPrice > 0
+          ? t.prevDayPrice
+          : undefined;
+        callback(t.symbol, t.markPrice, prevDay);
         anyEmitted = true;
       }
       // Only advance lastRestTickAt if at least one tick actually made it
@@ -447,7 +410,7 @@ export class HyperliquidSource implements PriceSource {
    * server-side close the client can't detect without a ping-pong cycle).
    */
   private maybeForceWsReconnect(wsAge: number): void {
-    if (!this.subscription) return; // no live WS to rescue
+    if (!this.wsSubscription) return; // no live WS to rescue
     if (this.wsRetryTimer) return;  // retry already scheduled
     if (wsAge <= 3 * this.wsStaleMs) return;
     this.log.warn(
@@ -463,24 +426,3 @@ export class HyperliquidSource implements PriceSource {
   }
 }
 
-/** Extract pino-serializable fields from a DOM-style ErrorEvent. */
-function serializeWsErrorEvent(ev: Event): Record<string, unknown> {
-  const e = ev as Event & { message?: unknown; error?: unknown };
-  const underlying = e.error;
-  return {
-    type: ev.type,
-    message: typeof e.message === "string" ? e.message : undefined,
-    error: underlying instanceof Error
-      ? { name: underlying.name, message: underlying.message }
-      : underlying !== undefined
-        ? String(underlying)
-        : undefined,
-  };
-}
-
-/** Stringify a `terminate` event cause for ops logs. */
-function serializeError(cause: unknown): string | undefined {
-  if (cause === undefined || cause === null) return undefined;
-  if (cause instanceof Error) return `${cause.name}: ${cause.message}`;
-  return String(cause);
-}

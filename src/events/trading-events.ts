@@ -1,6 +1,6 @@
 export interface PriceUpdateEvent {
   type: "trading.price.update";
-  payload: { symbol: string; price: number };
+  payload: { symbol: string; price: number; prevDayPrice?: number };
 }
 
 export interface WatchlistChangedEvent {

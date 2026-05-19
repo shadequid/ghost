@@ -22,6 +22,9 @@ async function freshDb(): Promise<Database> {
 
 function fakeTradingClient(prices: Record<string, number>): ITradingClient {
   return {
+    isKnownSymbol(symbol: string): boolean {
+      return Object.prototype.hasOwnProperty.call(prices, symbol.toUpperCase());
+    },
     async getTicker(symbol: string): Promise<Ticker> {
       const upper = symbol.toUpperCase();
       const markPrice = prices[upper];

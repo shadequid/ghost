@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CronService } from "../../src/scheduler/service.js";
@@ -217,6 +218,154 @@ describe("CronService — status", () => {
     svc.start({ defaults: [] });
     const st = svc.status();
     expect(st.nextWakeAtMs).toBeNull();
+    svc.stop();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Skip-on-miss (BUG-0150) — missed cron/at windows do NOT fire on startup
+// ---------------------------------------------------------------------------
+
+function seedStore(path: string, jobs: unknown[]): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify({ version: 1, jobs }, null, 2));
+}
+
+describe("CronService — skip-on-miss", () => {
+  test("cron job with past nextRunAtMs is advanced to future without firing", async () => {
+    const now = Date.now();
+    const pastMs = now - 60 * 60 * 1000;
+    seedStore(storePath, [{
+      id: "test1",
+      name: "morning-recap",
+      enabled: true,
+      schedule: { kind: "cron", expr: "0 8 * * *" },
+      payload: { kind: "agent_turn", message: "recap", deliver: true },
+      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
+      createdAtMs: now - 1_000_000,
+      updatedAtMs: now - 1_000_000,
+      deleteAfterRun: false,
+    }]);
+
+    let fired = 0;
+    const svc = new CronService(storePath);
+    svc.setOnJob(async () => { fired++; return null; });
+    svc.start({ defaults: [] });
+
+    // Give the timer a tick to settle. Skip-on-miss runs synchronously inside
+    // start(); fire would happen via the armed setTimeout with delay=0.
+    await new Promise((r) => setTimeout(r, 10));
+
+    const jobs = svc.listJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.state.nextRunAtMs).not.toBeNull();
+    expect(jobs[0]!.state.nextRunAtMs!).toBeGreaterThan(now);
+    expect(fired).toBe(0);
+    svc.stop();
+  });
+
+  test("at job with past nextRunAtMs is dropped (nextRunAtMs becomes null) without firing", async () => {
+    const now = Date.now();
+    const pastMs = now - 60 * 60 * 1000;
+    seedStore(storePath, [{
+      id: "test2",
+      name: "one-shot",
+      enabled: true,
+      schedule: { kind: "at", atMs: pastMs },
+      payload: { kind: "agent_turn", message: "remind", deliver: true },
+      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
+      createdAtMs: now - 1_000_000,
+      updatedAtMs: now - 1_000_000,
+      deleteAfterRun: false,
+    }]);
+
+    let fired = 0;
+    const svc = new CronService(storePath);
+    svc.setOnJob(async () => { fired++; return null; });
+    svc.start({ defaults: [] });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const jobs = svc.listJobs();
+    expect(jobs[0]!.state.nextRunAtMs).toBeNull();
+    expect(fired).toBe(0);
+    svc.stop();
+  });
+
+  test("cron job with future nextRunAtMs is left untouched", () => {
+    const now = Date.now();
+    const futureMs = now + 60 * 60 * 1000;
+    seedStore(storePath, [{
+      id: "test3",
+      name: "later",
+      enabled: true,
+      schedule: { kind: "cron", expr: "0 8 * * *" },
+      payload: { kind: "agent_turn", message: "later", deliver: true },
+      state: { nextRunAtMs: futureMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
+      createdAtMs: now - 1_000_000,
+      updatedAtMs: now - 1_000_000,
+      deleteAfterRun: false,
+    }]);
+
+    const svc = new CronService(storePath);
+    svc.start({ defaults: [] });
+    const jobs = svc.listJobs();
+    expect(jobs[0]!.state.nextRunAtMs).toBe(futureMs);
+    svc.stop();
+  });
+
+  test("both built-in cron jobs (morning-briefing and evening-recap) skip on miss", async () => {
+    const now = Date.now();
+    const pastMs = now - 60 * 60 * 1000;
+    const baseJob = (name: string, expr: string) => ({
+      id: name,
+      name,
+      enabled: true,
+      schedule: { kind: "cron", expr, tz: "UTC" },
+      payload: { kind: "agent_turn", message: `${name} prompt`, deliver: true },
+      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
+      createdAtMs: now - 1_000_000,
+      updatedAtMs: now - 1_000_000,
+      deleteAfterRun: false,
+    });
+    seedStore(storePath, [
+      baseJob("morning-briefing", "0 8 * * *"),
+      baseJob("evening-recap", "0 21 * * *"),
+    ]);
+
+    const firedNames: string[] = [];
+    const svc = new CronService(storePath);
+    svc.setOnJob(async (job) => { firedNames.push(job.name); return null; });
+    svc.start({ defaults: [] });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(firedNames).toEqual([]);
+    const jobs = svc.listJobs();
+    expect(jobs.every((j) => j.state.nextRunAtMs! > now)).toBe(true);
+    svc.stop();
+  });
+
+  test("every-kind job with past nextRunAtMs is NOT skipped (legacy behavior)", async () => {
+    const now = Date.now();
+    const pastMs = now - 60 * 60 * 1000;
+    seedStore(storePath, [{
+      id: "test4",
+      name: "interval",
+      enabled: true,
+      schedule: { kind: "every", everyMs: 30_000 },
+      payload: { kind: "agent_turn", message: "interval", deliver: true },
+      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
+      createdAtMs: now - 1_000_000,
+      updatedAtMs: now - 1_000_000,
+      deleteAfterRun: false,
+    }]);
+
+    let fired = 0;
+    const svc = new CronService(storePath);
+    svc.setOnJob(async () => { fired++; return null; });
+    svc.start({ defaults: [] });
+    // Wait long enough for the delay=0 timer to fire the missed interval.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fired).toBeGreaterThanOrEqual(1);
     svc.stop();
   });
 });

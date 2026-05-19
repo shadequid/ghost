@@ -8,6 +8,25 @@ import type {
   OrderRecord,
 } from "./trading-types.js";
 
+/**
+ * Handle returned by subscribe* methods. Consumers call unsubscribe() to
+ * stop receiving events. The implementation is WS-transport-agnostic so
+ * paper trading can emit synthetic ticks through the same interface.
+ */
+export interface ITradingSubscription {
+  unsubscribe(): Promise<void>;
+}
+
+/**
+ * Per-dex asset ctx bundle emitted by subscribeAllDexsAssetCtxs. The dex
+ * string is "" for native perps, or the lowercase dex name for HIP-3.
+ * ctxs is positional — index i corresponds to the i-th symbol in
+ * getDexUniverses().get(dex).
+ */
+export interface AllDexsAssetCtxsEvent {
+  ctxs: ReadonlyArray<readonly [dex: string, ctxs: ReadonlyArray<{ markPx?: string | number | null; [k: string]: unknown }>]>;
+}
+
 export interface ITradingClient {
   readonly canWrite: boolean;
   readonly address: string;
@@ -46,6 +65,25 @@ export interface ITradingClient {
   getAssetIndex(symbol: string): Promise<number>;
   /** Max leverage for a symbol (undefined when meta not loaded or asset unknown). */
   getMaxLeverage(symbol: string): number | undefined;
+  /** All known asset names across native + HIP-3 dexes after ensureMeta. */
+  getAllAssetNames(): string[];
+  /** Whether a symbol (after resolveSymbol) is in the loaded universe. */
+  isKnownSymbol(symbol: string): boolean;
+  /** Per-dex ordered symbol lists. Key "" = native. Read-only view. */
+  getDexUniverses(): ReadonlyMap<string, ReadonlyArray<string>>;
+
+  // ─── WS subscriptions ───
+
+  /**
+   * Subscribe to asset contexts (mark/mid/funding/OI) for native + every
+   * HIP-3 dex in a single WS stream. Replaces N per-dex REST calls.
+   */
+  subscribeAllDexsAssetCtxs(
+    listener: (event: AllDexsAssetCtxsEvent) => void,
+  ): Promise<ITradingSubscription>;
+
+  /** Tear down the underlying WS transport. Called from disconnect(). */
+  closeWs(): Promise<void>;
 
   placeOrder(params: PlaceOrderParams): Promise<PlaceOrderResult>;
   cancelOrder(symbol: string, orderId: string): Promise<CancelOrderResult>;

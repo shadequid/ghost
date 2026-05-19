@@ -3,13 +3,16 @@
  * routes writes to PaperEngine for local simulation.
  */
 
-import type { ITradingClient } from "../interfaces/trading-client.js";
+import type { ITradingClient, ITradingSubscription, AllDexsAssetCtxsEvent } from "../interfaces/trading-client.js";
 import type {
   Balance, Position, OpenOrder, Fill, Ticker, Kline, Orderbook, OrderRecord,
   PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult,
 } from "../interfaces/trading-types.js";
 import { PaperEngine } from "./engine.js";
 import type { PaperConfig } from "../../config/schema.js";
+
+/** No-op subscription returned by paper WS stubs. */
+const NOOP_SUB: ITradingSubscription = { unsubscribe: async () => {} };
 
 export class PaperTradingClient implements ITradingClient {
   private marketClient: ITradingClient;
@@ -51,6 +54,15 @@ export class PaperTradingClient implements ITradingClient {
   ensureMeta(): Promise<void> { return this.marketClient.ensureMeta(); }
   getAssetIndex(symbol: string): Promise<number> { return this.marketClient.getAssetIndex(symbol); }
   getMaxLeverage(symbol: string): number | undefined { return this.marketClient.getMaxLeverage(symbol); }
+  getAllAssetNames(): string[] { return this.marketClient.getAllAssetNames(); }
+  isKnownSymbol(symbol: string): boolean { return this.marketClient.isKnownSymbol(symbol); }
+  getDexUniverses(): ReadonlyMap<string, ReadonlyArray<string>> { return this.marketClient.getDexUniverses(); }
+
+  // WS subscriptions — paper mode emits no real WS events; stubs satisfy the interface.
+  subscribeAllDexsAssetCtxs(_listener: (event: AllDexsAssetCtxsEvent) => void): Promise<ITradingSubscription> {
+    return Promise.resolve(NOOP_SUB);
+  }
+  closeWs(): Promise<void> { return Promise.resolve(); }
 
   // Account reads — paper engine
   getBalance(_address?: string): Promise<Balance> { return this.engine.getBalance(); }

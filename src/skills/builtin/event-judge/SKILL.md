@@ -23,6 +23,7 @@ A buffer of events from one observer tick (60s window). Each event is one of:
 | `liquidation_risk` | Mark price reached 80% of the way from entry to liq. Cautionary, not yet liquidated. |
 | `pnl_snapshot` | Soft event — current PnL state of an open position. Emitted every tick a position exists. |
 | `price_alert` | A user-set price target was crossed. |
+| `portfolio_pnl_drift` | Account-wide unrealized PnL moved materially while the user was idle ≥ 2h. Already gated by the detector — when present, prefer to fire one short, gentle check-in with the symbol(s) doing the heavy lifting. |
 
 You also see recent chat context (last N user/assistant messages). Use it to judge whether you'd be repeating yourself or talking past a recent thing the user said.
 

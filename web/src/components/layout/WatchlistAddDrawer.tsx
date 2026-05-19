@@ -1,24 +1,7 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { splitSymbol } from './symbol-utils';
-
-function EmptyCoinsIcon() {
-  return (
-    <svg width="46" height="33" viewBox="0 0 46 33" fill="none" aria-hidden="true">
-      <g clipPath="url(#empty-coins-clip)">
-        <path d="M19.5368 0.40625C32.6208 3.35985 36.7756 20.5949 26.2077 29.3535C16.7223 37.2163 2.27836 31.6287 0.239975 19.3779C0.159369 18.8942 0.172824 18.3439 0.0202484 17.8867C0.0662684 16.9891 -0.0430775 16.0313 0.0202484 15.1416C0.491517 8.48232 5.40862 2.4319 11.6824 0.661133L14.7673 0.0458984H17.448L19.5368 0.40625ZM19.5564 8.51465C17.6038 6.56204 14.4377 6.56203 12.4851 8.51465L8.02513 12.9746C6.07251 14.9272 6.07252 18.0933 8.02513 20.0459L12.4851 24.5059C14.4377 26.4585 17.6038 26.4585 19.5564 24.5059L24.0163 20.0459C25.969 18.0933 25.969 14.9272 24.0163 12.9746L19.5564 8.51465Z" fill="#6E7480" />
-        <path d="M16.125 18.4349C15.51 18.4349 15 17.9249 15 17.3099V13.3149C15 12.6999 15.51 12.1899 16.125 12.1899C16.74 12.1899 17.25 12.6999 17.25 13.3149V17.3099C17.25 17.9399 16.74 18.4349 16.125 18.4349Z" fill="#3BF7BF" />
-        <circle cx="16.15" cy="20.3399" r="1.15" fill="#3BF7BF" />
-        <path d="M31.2376 0.0450013C38.6476 0.593641 44.9876 6.88039 45.8762 14.4188C47.2964 26.4653 36.1863 35.86 24.9178 32.1975C25.6 31.6646 26.338 31.2123 27.0145 30.6685C32.9745 25.8802 35.2497 17.6497 32.6502 10.3128C31.2463 6.34944 28.4423 3.01828 24.9187 0.87681C25.4283 0.644769 25.9992 0.503184 26.5452 0.386181C27.0912 0.269177 27.9232 0.0862968 28.4615 0.0440181C29.2417 -0.0179251 30.4556 -0.0139922 31.2386 0.0440181L31.2376 0.0450013Z" fill="#6E7480" />
-      </g>
-      <defs>
-        <clipPath id="empty-coins-clip">
-          <rect width="46" height="33" fill="white" />
-        </clipPath>
-      </defs>
-    </svg>
-  );
-}
+import emptyTokenSearchIllustration from '@/assets/empty-token-search.svg';
 
 export interface WatchlistAddDrawerProps {
   open: boolean;
@@ -27,9 +10,6 @@ export interface WatchlistAddDrawerProps {
   tokens: string[];
   prices: Record<string, number>;
   prevDayPrices: Record<string, number>;
-  /** Per-symbol max leverage from Hyperliquid universe metadata. Missing
-   *  entries → badge hidden for that row. */
-  maxLeverages: Record<string, number>;
   /** Symbols already on the user's watchlist. */
   watchlistSet: Set<string>;
   searchQuery: string;
@@ -43,7 +23,6 @@ export function WatchlistAddDrawer({
   tokens,
   prices,
   prevDayPrices,
-  maxLeverages,
   watchlistSet,
   searchQuery,
   onSearchChange,
@@ -128,7 +107,6 @@ export function WatchlistAddDrawer({
           tokens={stableTokens}
           prices={prices}
           prevDayPrices={prevDayPrices}
-          maxLeverages={maxLeverages}
           watchlistSet={watchlistSet}
           onToggle={onToggle}
           searchQuery={searchQuery}
@@ -224,19 +202,26 @@ interface TokenListProps {
   tokens: string[];
   prices: Record<string, number>;
   prevDayPrices: Record<string, number>;
-  maxLeverages: Record<string, number>;
   watchlistSet: Set<string>;
   onToggle: (sym: string) => void;
   searchQuery: string;
 }
 
-function TokenList({ tokens, prices, prevDayPrices, maxLeverages, watchlistSet, onToggle, searchQuery }: TokenListProps) {
+function TokenList({ tokens, prices, prevDayPrices, watchlistSet, onToggle, searchQuery }: TokenListProps) {
   if (tokens.length === 0) {
     return (
       <div className="flex-1 min-h-0 overflow-y-auto pb-2">
         <div className="flex flex-col items-center gap-[14px] pt-[90px] px-4">
-          <EmptyCoinsIcon />
-          <p className="m-0 text-body-md text-[var(--color-text-tertiary)] text-center">
+          <img
+            src={emptyTokenSearchIllustration}
+            alt=""
+            width={128}
+            height={129}
+            className="block select-none"
+            draggable={false}
+            aria-hidden="true"
+          />
+          <p className="m-0 text-body-md text-[var(--color-text-secondary)] text-center">
             {searchQuery
               ? <>No results for &ldquo;{searchQuery.toLowerCase()}&rdquo;</>
               : 'No tokens available'}
@@ -253,7 +238,6 @@ function TokenList({ tokens, prices, prevDayPrices, maxLeverages, watchlistSet, 
         const prev = prevDayPrices[sym];
         const change =
           price != null && prev != null && prev > 0 ? ((price - prev) / prev) * 100 : null;
-        const maxLev = maxLeverages[sym];
         return (
           <TokenRow
             key={sym}
@@ -261,7 +245,6 @@ function TokenList({ tokens, prices, prevDayPrices, maxLeverages, watchlistSet, 
             isFav={isFav}
             price={price}
             change={change}
-            maxLeverage={typeof maxLev === 'number' && maxLev > 0 ? maxLev : null}
             onToggle={() => onToggle(sym)}
           />
         );
@@ -275,11 +258,10 @@ interface TokenRowProps {
   isFav: boolean;
   price: number | undefined;
   change: number | null;
-  maxLeverage: number | null;
   onToggle: () => void;
 }
 
-function TokenRow({ symbol, isFav, price, change, maxLeverage, onToggle }: TokenRowProps) {
+function TokenRow({ symbol, isFav, price, change, onToggle }: TokenRowProps) {
   return (
     <button
       type="button"
@@ -296,7 +278,6 @@ function TokenRow({ symbol, isFav, price, change, maxLeverage, onToggle }: Token
       <div className="flex items-center gap-2">
         <StarIcon filled={isFav} />
         <SymbolWithDex symbol={symbol} />
-        {maxLeverage != null && <LeverageBadge value={maxLeverage} />}
       </div>
       <div className="flex items-center gap-1 [font-variant-numeric:tabular-nums]">
         <span className="text-body-sm text-text-primary">
@@ -325,22 +306,6 @@ function SymbolWithDex({ symbol }: { symbol: string }) {
           {dex.toUpperCase()}
         </span>
       )}
-    </span>
-  );
-}
-
-function LeverageBadge({ value }: { value: number }) {
-  return (
-    <span
-      className={
-        'inline-flex items-center justify-center h-[18px] px-2 rounded-[2px] ' +
-        'bg-[rgba(59,247,191,0.08)] text-brand-default ' +
-        'text-caption leading-none ' +
-        '[font-variant-numeric:tabular-nums]'
-      }
-      aria-label={`Max leverage ${value}x`}
-    >
-      {value}x
     </span>
   );
 }

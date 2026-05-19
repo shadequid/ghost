@@ -49,6 +49,8 @@ function makeRegistry(): { reg: MethodRegistry; preferenceStore: PreferenceStore
     preferenceStore,
     watchlist: {} as any,
     logger: noopLogger,
+    tokensSnapshot: { build: () => ({ tokens: [], prices: {}, prevDayPrices: {}, maxLeverages: {} }) } as any,
+    priceCache: { get: () => undefined, set: () => {} } as any,
   });
   return { reg, preferenceStore, db };
 }

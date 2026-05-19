@@ -155,9 +155,12 @@ export function TerminalModal({ open, onClose, title, children, width = 600, hea
   // layers created by transforms/animations elsewhere in the app (eg.
   // `.message-enter` in chat). Without this, z-index alone can't win
   // against GPU-promoted sibling branches.
+  // Top-aligned with a 100px gap from the viewport top. The card itself
+  // scrolls if its content exceeds the remaining height (vh − 100px top
+  // gap − 24px bottom safety).
   const overlayNode = (
     <div
-      className="fixed inset-0 z-[10010] bg-[var(--color-surface-scrim)] backdrop-blur-[4px] flex items-center justify-center"
+      className="fixed inset-0 z-[10010] bg-[var(--color-surface-scrim)] backdrop-blur-[4px] flex items-start justify-center pt-[100px] pb-6 px-4 overflow-y-auto"
       style={overlayAnim}
       onClick={(e) => { if (e.target === e.currentTarget) animatedClose(); }}
     >
@@ -165,7 +168,7 @@ export function TerminalModal({ open, onClose, title, children, width = 600, hea
         ref={dialogRef}
         className={
           (cardClassName ?? 'bg-[var(--color-surface-base)] border border-[var(--color-border-default)] rounded-[2px] shadow-[0_8px_32px_rgba(0,0,0,0.5)]')
-          + ' w-full max-h-[85vh] overflow-y-auto'
+          + ' w-full max-h-[calc(100vh-124px)] overflow-y-auto'
         }
         style={{ ...modalAnim, maxWidth: width }}
         role="dialog"

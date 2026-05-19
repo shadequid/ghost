@@ -11,6 +11,8 @@ import type { PreferenceStore } from "../services/preferences.js";
 import type { Importance } from "../services/news-types.js";
 import type { WatchlistService } from "../services/watchlist.js";
 import type { Logger } from "pino";
+import type { TokensSnapshotService } from "../services/tokens-snapshot.js";
+import type { PriceCache } from "../services/price-cache.js";
 import { DEFAULT_NEWS_FILTER_INSTRUCTION } from "../daemon/prompts/news-evaluation.js";
 import { DEFAULT_TWEET_FILTER_INSTRUCTION } from "../daemon/prompts/tweet-evaluation.js";
 
@@ -28,6 +30,10 @@ interface TradingDeps {
   preferenceStore: PreferenceStore;
   watchlist: WatchlistService;
   logger: Logger;
+  /** In-memory snapshot service — serves trading.tokens.list with zero HL calls. */
+  tokensSnapshot: TokensSnapshotService;
+  /** Price cache — serves trading.price from in-memory state; falls back to HL on cold miss. */
+  priceCache: PriceCache;
 }
 
 export function registerTradingMethods(
@@ -186,32 +192,20 @@ export function registerTradingMethods(
   });
 
   register("trading.tokens.list", async () => {
-    try {
-      const tickers = await deps.tradingClient.getAllTickers();
-      const prices: Record<string, number> = {};
-      const prevDayPrices: Record<string, number> = {};
-      const maxLeverages: Record<string, number> = {};
-      const tokens: string[] = [];
-      for (const t of tickers) {
-        tokens.push(t.symbol);
-        prices[t.symbol] = t.markPrice;
-        if (t.prevDayPrice > 0) prevDayPrices[t.symbol] = t.prevDayPrice;
-        const lev = deps.tradingClient.getMaxLeverage(t.symbol);
-        if (typeof lev === "number" && lev > 0) maxLeverages[t.symbol] = lev;
-      }
-      tokens.sort();
-      return { tokens, prices, prevDayPrices, maxLeverages };
-    } catch {
-      return { tokens: [], prices: {}, prevDayPrices: {}, maxLeverages: {} };
-    }
+    return deps.tokensSnapshot.build();
   });
 
   register("trading.price", async (_ctx, payload) => {
     const params = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
     const symbol = typeof params.symbol === "string" ? params.symbol : undefined;
     if (!symbol) return { price: null, symbol: null };
+    const resolved = deps.tradingClient.resolveSymbol(symbol);
+    // Fast path: serve from in-memory price cache (updated by composite feed).
+    const entry = deps.priceCache.get(resolved, 30_000);
+    if (entry) return { symbol: resolved, price: entry.price };
+    // Cold miss (daemon just started, feed not yet populated): fall back to HL.
     try {
-      const ticker = await deps.tradingClient.getTicker(symbol);
+      const ticker = await deps.tradingClient.getTicker(resolved);
       return { symbol: ticker.symbol, price: ticker.markPrice };
     } catch {
       return { price: null, symbol };
@@ -233,7 +227,10 @@ export function registerTradingMethods(
     // Canonicalize via resolveSymbol so HIP-3 "xyz:AAPL" stores with lowercase dex prefix,
     // matching the form getAllTickers() emits. toUpperCase() alone breaks HIP-3 dedup.
     const resolved = deps.tradingClient.resolveSymbol(symbol);
-    try { await deps.tradingClient.getTicker(resolved); } catch { return { error: `Symbol ${resolved} not found on Hyperliquid` }; }
+    // Validate against the in-memory universe so watchlist.add never hits HL /info.
+    if (!deps.tradingClient.isKnownSymbol(resolved)) {
+      return { error: `Symbol ${resolved} not found on Hyperliquid` };
+    }
     try {
       const item = deps.watchlist.add(resolved);
       return { item };

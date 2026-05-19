@@ -311,8 +311,10 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   // instead of waiting for the next scheduled tick.
   runtime.xFollowService.onEnable(() => runner.kick("tweet-fetch"));
 
-  // 11. Await wallet readiness BEFORE app.listen (preserved ordering).
   await runtime.walletReady;
+  await tradingClient.ensureMeta().catch((err) => {
+    logger.warn({ err }, "ensureMeta on startup failed — will retry on first use");
+  });
 
   app.listen({ port: config.gateway.port, hostname: config.gateway.host });
 

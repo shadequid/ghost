@@ -2,77 +2,81 @@
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
-/* Rethink Sans — self-hosted via vite asset pipeline (.woff2 files in
-   src/assets/fonts/rethink-sans/ are bundled + fingerprinted by vite).
-   Figma 841:8863 specifies "SVN-Rethink Sans" — the upstream Google Font
-   already covers the Latin-Extended + Vietnamese ranges (U+0100-02BA and
-   U+1EF2-1EFF) used by Vietnamese diacritics, so we ship the upstream
-   build rather than the SVN- repack. Two woff2 files (latin + latin-ext)
-   cover all 4 weights — Google's variable build reuses the same payload
-   per weight via unicode-range partitioning. */
+/* SVN-Rethink Sans — self-hosted via vite asset pipeline. The 4 .otf
+   files in src/assets/fonts/rethink-sans/ are the SVN foundry repack
+   (covers Latin + Vietnamese diacritics). Family is registered as both
+   "Rethink Sans" and "SVN-Rethink Sans" so existing call-sites + Figma
+   spec names both resolve. Weights shipped: 400 Regular, 500 Medium,
+   700 Bold (also alias 600 → Bold for semibold tokens), 400 Italic. */
 @font-face {
   font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Regular.otf") format("opentype");
 }
 @font-face {
   font-family: "Rethink Sans";
-  font-style: normal;
+  font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Italic.otf") format("opentype");
 }
 @font-face {
   font-family: "Rethink Sans";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Medium.otf") format("opentype");
 }
 @font-face {
   font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Bold.otf") format("opentype");
+}
+@font-face {
+  font-family: "Rethink Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Bold.otf") format("opentype");
+}
+@font-face {
+  font-family: "SVN-Rethink Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Regular.otf") format("opentype");
+}
+@font-face {
+  font-family: "SVN-Rethink Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Italic.otf") format("opentype");
+}
+@font-face {
+  font-family: "SVN-Rethink Sans";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Medium.otf") format("opentype");
 }
 @font-face {
-  font-family: "Rethink Sans";
+  font-family: "SVN-Rethink Sans";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Bold.otf") format("opentype");
 }
 @font-face {
-  font-family: "Rethink Sans";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Rethink Sans";
+  font-family: "SVN-Rethink Sans";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Rethink Sans";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("./assets/fonts/rethink-sans/rethink-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  src: url("./assets/fonts/rethink-sans/SVN-RethinkSans-Bold.otf") format("opentype");
 }
 
 @theme {
@@ -241,10 +245,11 @@
      avoid silent utility shadowing (per
      ~/.claude/skills/tailwind-v4-theme-shadows-defaults). */
   --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
-  /* Sans stack — Rethink Sans (Figma 841:8863) self-hosted via @font-face
-     above (.woff2 bundled by vite). Falls back to the prior SF Pro stack
-     when the woff2 fails to load, then to system fonts. */
-  --font-sans: "Rethink Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
+  /* Sans stack — SVN-Rethink Sans (Figma spec name) self-hosted via
+     @font-face above (.otf bundled by vite). Also aliased as "Rethink
+     Sans" so prior call-sites still resolve. Falls back to the SF Pro
+     stack when the OTF fails to load, then to system fonts. */
+  --font-sans: "SVN-Rethink Sans", "Rethink Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
 
   /* ── Figma "AgentGhost" dark palette · 35 tokens · brand #3BF7BF ──
      Source: figma.com/design/maLdi9FQS11WDshl3IRfQu (node 12:2).
@@ -1249,6 +1254,193 @@ select:focus-visible {
   to { opacity: 0; transform: scale(0.96) translateY(8px); }
 }
 
+/* ── GlobeLoader (chat welcome illustration) ────────────────────────────
+   3 SVG frames cycle on a 9 s loop with ambient glow, rotating ring,
+   scan line, floating particles, corner brackets, and progress dots.
+   Owned by GlobeLoader.tsx; frozen under prefers-reduced-motion above. */
+.globe-loader-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 280px;
+  height: 280px;
+  transform: translate(-50%, -55%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 247, 191, 0.12) 0%, rgba(59, 247, 191, 0.04) 40%, transparent 70%);
+  animation: globeLoaderGlow 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes globeLoaderGlow {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -55%) scale(1); }
+  50%      { opacity: 1;   transform: translate(-50%, -55%) scale(1.15); }
+}
+
+.globe-loader-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translate(-50%, -55%);
+  border-radius: 50%;
+  border: 1px solid rgba(59, 247, 191, 0.06);
+  animation: globeLoaderRing 20s linear infinite;
+  pointer-events: none;
+}
+.globe-loader-ring::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(59, 247, 191, 0.5);
+  box-shadow: 0 0 8px rgba(59, 247, 191, 0.4);
+}
+@keyframes globeLoaderRing {
+  from { transform: translate(-50%, -55%) rotate(0deg); }
+  to   { transform: translate(-50%, -55%) rotate(360deg); }
+}
+
+.globe-loader-frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.96);
+  will-change: opacity, transform;
+}
+.globe-loader-frame img {
+  width: 334px;
+  height: 268px;
+  filter: drop-shadow(0 0 20px rgba(59, 247, 191, 0.08));
+}
+.globe-loader-frame-1 { animation: globeLoaderFrame1 9s ease-in-out infinite; }
+.globe-loader-frame-2 { animation: globeLoaderFrame2 9s ease-in-out infinite; }
+.globe-loader-frame-3 { animation: globeLoaderFrame3 9s ease-in-out infinite; }
+@keyframes globeLoaderFrame1 {
+  0%   { opacity: 0; transform: scale(0.92) translateY(8px); }
+  4%   { opacity: 1; transform: scale(1)    translateY(0); }
+  25%  { opacity: 1; transform: scale(1)    translateY(0); }
+  31%  { opacity: 0; transform: scale(1.03) translateY(-6px); }
+  92%  { opacity: 0; transform: scale(0.92) translateY(8px); }
+  100% { opacity: 0; transform: scale(0.92) translateY(8px); }
+}
+@keyframes globeLoaderFrame2 {
+  0%   { opacity: 0; transform: scale(0.92) translateY(8px); }
+  27%  { opacity: 0; transform: scale(0.92) translateY(8px); }
+  33%  { opacity: 1; transform: scale(1)    translateY(0); }
+  58%  { opacity: 1; transform: scale(1)    translateY(0); }
+  64%  { opacity: 0; transform: scale(1.03) translateY(-6px); }
+  100% { opacity: 0; transform: scale(0.92) translateY(8px); }
+}
+@keyframes globeLoaderFrame3 {
+  0%   { opacity: 0; transform: scale(0.92) translateY(8px); }
+  60%  { opacity: 0; transform: scale(0.92) translateY(8px); }
+  66%  { opacity: 1; transform: scale(1)    translateY(0); }
+  91%  { opacity: 1; transform: scale(1)    translateY(0); }
+  97%  { opacity: 0; transform: scale(1.03) translateY(-6px); }
+  100% { opacity: 0; transform: scale(0.92) translateY(8px); }
+}
+
+.globe-loader-scan {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 334px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(59, 247, 191, 0.4), transparent);
+  border-radius: 2px;
+  animation: globeLoaderScan 4.5s ease-in-out infinite;
+  opacity: 0.6;
+  pointer-events: none;
+}
+@keyframes globeLoaderScan {
+  0%   { top: 10%; opacity: 0; }
+  10%  { opacity: 0.6; }
+  50%  { top: 70%; opacity: 0.6; }
+  90%  { opacity: 0; }
+  100% { top: 85%; opacity: 0; }
+}
+
+.globe-loader-progress {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.globe-loader-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(59, 247, 191, 0.2);
+  transition: all 0.5s ease;
+}
+.globe-loader-dot-1 { animation: globeLoaderDot1 9s ease-in-out infinite; }
+.globe-loader-dot-2 { animation: globeLoaderDot2 9s ease-in-out infinite; }
+.globe-loader-dot-3 { animation: globeLoaderDot3 9s ease-in-out infinite; }
+@keyframes globeLoaderDot1 {
+  0%, 4%    { background: rgba(59, 247, 191, 0.8); box-shadow: 0 0 8px rgba(59, 247, 191, 0.5); width: 18px; border-radius: 3px; }
+  28%, 100% { background: rgba(59, 247, 191, 0.2); box-shadow: none; width: 6px; border-radius: 50%; }
+}
+@keyframes globeLoaderDot2 {
+  0%, 30%   { background: rgba(59, 247, 191, 0.2); box-shadow: none; width: 6px; border-radius: 50%; }
+  34%, 61%  { background: rgba(59, 247, 191, 0.8); box-shadow: 0 0 8px rgba(59, 247, 191, 0.5); width: 18px; border-radius: 3px; }
+  65%, 100% { background: rgba(59, 247, 191, 0.2); box-shadow: none; width: 6px; border-radius: 50%; }
+}
+@keyframes globeLoaderDot3 {
+  0%, 63%   { background: rgba(59, 247, 191, 0.2); box-shadow: none; width: 6px; border-radius: 50%; }
+  67%, 94%  { background: rgba(59, 247, 191, 0.8); box-shadow: 0 0 8px rgba(59, 247, 191, 0.5); width: 18px; border-radius: 3px; }
+  98%, 100% { background: rgba(59, 247, 191, 0.2); box-shadow: none; width: 6px; border-radius: 50%; }
+}
+
+.globe-loader-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.globe-loader-particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(59, 247, 191, 0.4);
+}
+.globe-loader-particle.p1 { left: 10%; animation: globeLoaderFloat 7s   ease-in-out infinite; animation-delay: 0s; }
+.globe-loader-particle.p2 { left: 25%; animation: globeLoaderFloat 8s   ease-in-out infinite; animation-delay: -2s; }
+.globe-loader-particle.p3 { left: 40%; animation: globeLoaderFloat 6s   ease-in-out infinite; animation-delay: -4s; }
+.globe-loader-particle.p4 { left: 60%; animation: globeLoaderFloat 9s   ease-in-out infinite; animation-delay: -1s; }
+.globe-loader-particle.p5 { left: 75%; animation: globeLoaderFloat 7.5s ease-in-out infinite; animation-delay: -3s; }
+.globe-loader-particle.p6 { left: 88%; animation: globeLoaderFloat 6.5s ease-in-out infinite; animation-delay: -5s; }
+.globe-loader-particle.p7 { left: 50%; animation: globeLoaderFloat 8.5s ease-in-out infinite; animation-delay: -6s; }
+.globe-loader-particle.p8 { left: 15%; animation: globeLoaderFloat 7.2s ease-in-out infinite; animation-delay: -1.5s; }
+@keyframes globeLoaderFloat {
+  0%   { bottom: -5%;  opacity: 0;   transform: translateX(0); }
+  10%  { opacity: 0.6; }
+  50%  { opacity: 0.3; transform: translateX(20px); }
+  90%  { opacity: 0; }
+  100% { bottom: 105%; opacity: 0;   transform: translateX(-10px); }
+}
+
+.globe-loader-corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+}
+.globe-loader-corner-tl { top: 24px;    left: 33px;  border-top:    1px solid rgba(59, 247, 191, 0.15); border-left:  1px solid rgba(59, 247, 191, 0.15); }
+.globe-loader-corner-tr { top: 24px;    right: 33px; border-top:    1px solid rgba(59, 247, 191, 0.15); border-right: 1px solid rgba(59, 247, 191, 0.15); }
+.globe-loader-corner-bl { bottom: 50px; left: 33px;  border-bottom: 1px solid rgba(59, 247, 191, 0.15); border-left:  1px solid rgba(59, 247, 191, 0.15); }
+.globe-loader-corner-br { bottom: 50px; right: 33px; border-bottom: 1px solid rgba(59, 247, 191, 0.15); border-right: 1px solid rgba(59, 247, 191, 0.15); }
+
 @media (prefers-reduced-motion: reduce) {
   .hero-panel::after,
   .hero-panel::before,
@@ -1317,6 +1509,28 @@ select:focus-visible {
   .ghost-symbol-bob {
     animation: none !important;
     transform: none !important;
+  }
+
+  /* GlobeLoader (chat welcome) — freeze every layer so the illustration
+     stays visible as a static image. Frame 1 stays visible since the
+     reduced-motion override below keeps its opacity at 1. */
+  [data-globe-loader] *,
+  [data-globe-loader]::before,
+  [data-globe-loader]::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  [data-globe-loader] .globe-loader-frame {
+    opacity: 0;
+  }
+  [data-globe-loader] .globe-loader-frame-1 {
+    opacity: 1;
+  }
+  [data-globe-loader] .globe-loader-dot-1 {
+    background: rgba(59, 247, 191, 0.8);
+    width: 18px;
+    border-radius: 3px;
   }
 
   /* Drawer slide + scrim fade — opt in via data-attribute so reduced-motion

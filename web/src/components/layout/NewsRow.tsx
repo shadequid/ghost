@@ -43,7 +43,7 @@ export function NewsRow({
     <div
       className={
         'relative flex flex-col gap-2 py-3 px-4 cursor-pointer transition-colors duration-fast ease-out '
-        + (selected ? 'bg-surface-base ' : 'hover:bg-white/[0.02] ')
+        + (selected ? 'bg-brand-subtle ' : 'hover:bg-white/[0.02] ')
         + (inDrawer
           ? 'border-t border-l border-border-subtle'
           : (isLast ? '' : 'border-b border-border-subtle'))

@@ -766,7 +766,7 @@ describe("stripNpmrcBlock", () => {
   it("strips sentinel block, preserves surrounding entries", async () => {
     const npmrc = `registry=https://registry.npmjs.org/
 # GHOST-NPMRC-BEGIN (managed by ghost installer -- do not edit)
-@hyperflow.fun:registry=https://example.com/packages/npm/
+@hyperflow.fun:registry=https://registry.npmjs.org/
 # GHOST-NPMRC-END
 loglevel=warn
 `;

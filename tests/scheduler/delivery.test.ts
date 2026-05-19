@@ -175,16 +175,25 @@ class ContextBuilderStub {
 /**
  * Minimal SessionManager stub — surfaces a pre-canned message array so the
  * delivery handler can build its language-reference block.
+ *
+ * `shape` toggles between the array-of-blocks form (pi-ai canonical) and the
+ * plain-string form that `Orchestrator.runPrompt` actually persists for
+ * inbound user messages. Both must produce the same language reference.
  */
 class SessionManagerStub {
-  constructor(private readonly userTexts: string[] = []) {}
+  constructor(
+    private readonly userTexts: string[] = [],
+    private readonly shape: "array" | "string" = "array",
+  ) {}
 
-  getOrCreate(_key: string): { messages: Array<{ role: string; content: Array<{ type: string; text: string }> }> } {
+  getOrCreate(_key: string): { messages: Array<{ role: string; content: unknown }> } {
     void _key;
     return {
       messages: this.userTexts.map((t) => ({
         role: "user",
-        content: [{ type: "text", text: t }],
+        content: this.shape === "string"
+          ? t
+          : [{ type: "text", text: t }],
       })),
     };
   }
@@ -385,6 +394,19 @@ describe("createCronDeliveryHandler — web delivery (no telegram pairing)", () 
     expect(message).toContain(second);
     // The lang-ref block must appear before the REMINDER_NOTE_PREFIX content.
     expect(message.indexOf("Recent user messages")).toBeLessThan(message.indexOf("natural message"));
+  });
+  // BUG-0151 — user messages persisted with `content: string` (the dominant
+  // shape from Orchestrator.runPrompt) must also surface in the language
+  // reference. The pre-fix filter dropped them silently and recap defaulted
+  // to English.
+  test("string-shape user content → language-reference block populated", async () => {
+    const vi = "vị thế ETH của tôi đang lỗ bao nhiêu?";
+    deps.sessionManager = new SessionManagerStub([vi], "string") as never;
+    const handler = createCronDeliveryHandler(deps);
+    await handler(makeJob());
+    const message = runner.calls[0].message;
+    expect(message).toContain("Recent user messages");
+    expect(message).toContain(vi);
   });
 });
 

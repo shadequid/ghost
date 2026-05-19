@@ -61,7 +61,18 @@ export class CronService {
     this.seedDefaultJobs(opts.defaults ?? BUILT_IN_JOBS);
     const now = Date.now();
     for (const job of this.store.jobs) {
-      if (job.enabled && !job.state.nextRunAtMs) {
+      if (!job.enabled) continue;
+      // Skip-on-miss: any cron/at job whose nextRunAtMs already elapsed while the
+      // daemon was offline must NOT replay on startup. Advance the timestamp to
+      // the next future occurrence (cron) or drop it (at). 'every' intervals are
+      // left untouched — their cadence is now+everyMs by construction.
+      if (
+        job.state.nextRunAtMs !== null &&
+        job.state.nextRunAtMs <= now &&
+        (job.schedule.kind === "cron" || job.schedule.kind === "at")
+      ) {
+        job.state.nextRunAtMs = computeNextRun(job.schedule, now);
+      } else if (!job.state.nextRunAtMs) {
         job.state.nextRunAtMs = computeNextRun(job.schedule, now);
       }
     }

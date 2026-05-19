@@ -50,13 +50,16 @@ export function ChatInput({
 
   const doSend = useCallback((text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || disabled) return;
+    // `disabled` covers transport failures (no socket); `isBusy` covers the
+    // mid-response window — user is allowed to keep typing during a Ghost
+    // turn, but the message must not be sent until streaming finishes.
+    if (!trimmed || disabled || isBusy) return;
     const expanded = trimmed.startsWith('/') ? expandSlashCommand(trimmed) : null;
     onSend(expanded ?? trimmed);
     setInput('');
     setSlashIdx(0);
     setSlashDismissed(false);
-  }, [disabled, onSend]);
+  }, [disabled, isBusy, onSend]);
 
   const handleSlashSelect = useCallback((cmd: string) => {
     if (NO_PARAM_COMMANDS.has(cmd)) {
@@ -100,7 +103,7 @@ export function ChatInput({
     }
   }, [disabled]);
 
-  const canSend = !disabled && input.trim().length > 0;
+  const canSend = !disabled && !isBusy && input.trim().length > 0;
   const showOverlay = !input;
   const useTypewriter = !disabled;
 

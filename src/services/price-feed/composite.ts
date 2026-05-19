@@ -115,7 +115,7 @@ export class CompositePriceFeed {
     // block the others — composite is designed to tolerate missing sources.
     await Promise.all(this.sources.map(async (source) => {
       try {
-        await source.start((symbol, price) => this.handleTick(source, symbol, price));
+        await source.start((symbol, price, prevDayPrice) => this.handleTick(source, symbol, price, prevDayPrice));
       } catch (err) {
         this.log.warn({ err, source: source.name }, "source failed to start");
       }
@@ -150,7 +150,7 @@ export class CompositePriceFeed {
     this.onPrice = null;
   }
 
-  private handleTick(source: PriceSource, symbol: string, price: number): void {
+  private handleTick(source: PriceSource, symbol: string, price: number, prevDayPrice?: number): void {
     if (!this.onPrice) return;
     // First-tick election — whichever source ticks first during the cold-start
     // window becomes initial primary. Reconcile will still promote the top-
@@ -163,7 +163,7 @@ export class CompositePriceFeed {
     // Only the elected primary's ticks are forwarded downstream. Other sources
     // still tick internally so their getLastTickAt() stays fresh for failover.
     if (source.name !== this.currentPrimary) return;
-    this.onPrice(symbol, price);
+    this.onPrice(symbol, price, prevDayPrice);
   }
 
   private isHealthy(source: PriceSource): boolean {
