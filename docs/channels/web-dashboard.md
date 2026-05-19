@@ -47,4 +47,4 @@ If the bot is paired, every trade approval card in chat also lands in your Teleg
 
 ## Network exposure
 
-Ghost binds to `127.0.0.1:15401` by default — loopback only, reachable from the same machine. See [network-exposure.md](../security/network-exposure.md) for details.
+Ghost binds to `127.0.0.1:15401` by default — loopback only, reachable from the same machine. To reach the dashboard from your phone or another laptop, put an authenticated tunnel in front. See [network-exposure.md](../security/network-exposure.md) for Tailscale Serve, ngrok OAuth, and mTLS recipes.

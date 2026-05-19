@@ -62,7 +62,9 @@ Most traders run **Interactive** mode — full control with Ghost's advice.
 
 ## Network Exposure: Loopback by Default
 
-Ghost's gateway (the web dashboard and API) listens on your local machine only (`127.0.0.1:15401`). Only you, on the same machine, can access the dashboard and API. See [Network Exposure](../security/network-exposure.md).
+Ghost's gateway (the web dashboard and API) listens on your local machine only (`127.0.0.1:15401`). Only you, on the same machine, can access the dashboard and API.
+
+To reach the dashboard from another device, use an authenticated tunnel (Tailscale Serve, ngrok OAuth, mTLS) — never expose the gateway directly. See [Network Exposure](../security/network-exposure.md) for recipes.
 
 ## Credentials at Rest: Encrypted
 

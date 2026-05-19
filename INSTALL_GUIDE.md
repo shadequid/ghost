@@ -151,7 +151,9 @@ ghost onboard --provider claude-cli --model claude-sonnet-4-6 --paper -b 50000
 ## Security Note
 
 The Ghost gateway has no built-in authentication. By default it binds to
-loopback only (`127.0.0.1:15401`), reachable only from the same machine.
-Keep this default — it's the safe option for local use.
+loopback only (`127.0.0.1:15401`), reachable only from the same machine. To
+reach it from another device, put an authenticated tunnel in front — see
+[docs/security/network-exposure.md](docs/security/network-exposure.md) for
+Tailscale, ngrok OAuth, and mTLS recipes.
 
 Without `--provider`/`--model`, `ghost onboard` runs the interactive wizard.

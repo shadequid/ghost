@@ -91,6 +91,8 @@ curl -s http://localhost:15401/health
 # Expected: {"status": "ok"} or similar
 ```
 
+To reach the dashboard from another device, see [Security: Network Exposure](./security/network-exposure.md) for Tailscale, ngrok OAuth, and mTLS recipes.
+
 ## Provider-Specific Gotchas
 
 ### Claude Code (claude-cli)

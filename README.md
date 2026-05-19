@@ -105,6 +105,10 @@ loopback only (`gateway.host=127.0.0.1`), so the dashboard is reachable from
 the same machine but invisible to the network — safe to leave as-is for local
 use.
 
+To reach the dashboard from another device, put an authenticated tunnel
+(Tailscale Serve, ngrok OAuth, mTLS proxy) in front of `127.0.0.1:15401`.
+See [docs/security/network-exposure.md](docs/security/network-exposure.md).
+
 ## License
 
 Open source.

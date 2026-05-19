@@ -13,7 +13,7 @@ Ghost's security model is built on three pillars: **trust boundaries**, **autono
 | Session tokens | gateway_sessions table | Bearer token auth | Revoked on channel unpairing |
 
 **Trust boundary:**
-- **Loopback only:** Gateway listens on `127.0.0.1:15401`. Only 127.0.0.1 can issue RPC calls. Safe for single-user installs. The daemon refuses to start on any non-loopback host. See `docs/security/network-exposure.md`.
+- **Loopback only:** Gateway listens on `127.0.0.1:15401`. Only 127.0.0.1 can issue RPC calls. Safe for single-user installs. The daemon refuses to start on any non-loopback host. For remote access, terminate an authenticated tunnel (Tailscale, ngrok OAuth, mTLS) at the loopback port — see `docs/security/network-exposure.md`.
 
 ## Autonomy Levels
 
@@ -128,3 +128,5 @@ Operators `&&`, `||`, `;` are allowed as statement separators within the same se
 ## Responsible Disclosure
 
 **TODO:** Add security contact (security@example.com) to project README before production release.
+
+See `docs/security/network-exposure.md` for authenticated tunnel recipes (Tailscale, ngrok OAuth, mTLS).
