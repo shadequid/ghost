@@ -8,6 +8,8 @@ import { initDatabase } from "../../src/core/database.js";
 import { runDbMigrations } from "../../src/core/migrations/db.js";
 import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
 import { AlertRulesService } from "../../src/services/alert-rules.js";
+import { NewsService } from "../../src/services/news.js";
+import { WatchlistService } from "../../src/services/watchlist.js";
 import { NotificationsService } from "../../src/services/notifications.js";
 import { PriceCache } from "../../src/services/price-cache.js";
 import { ApprovalManager } from "../../src/gateway/approval.js";
@@ -67,6 +69,7 @@ function stubClient(opts: StubClientOpts = {}): ITradingClient {
     getMaxLeverage: () => undefined,
     getAllAssetNames: () => [],
     isKnownSymbol: () => false,
+    getAllAssets: () => [],
     getDexUniverses: () => new Map(),
     subscribeAllDexsAssetCtxs: async () => ({ unsubscribe: async () => {} }),
     closeWs: async () => {},
@@ -83,6 +86,8 @@ function stubClient(opts: StubClientOpts = {}): ITradingClient {
 function buildLoop(db: Database, opts: { client?: ITradingClient; runnerCalls?: string[]; runnerResponse?: string } = {}) {
   const eventBus = new EventBus(noopLogger);
   const alertRules = new AlertRulesService(db, eventBus);
+  const watchlistService = new WatchlistService(db);
+  const newsService = new NewsService(db, watchlistService, undefined, noopLogger);
   const notifications = new NotificationsService(db);
   const priceCache = new PriceCache();
   const approvalManager = new ApprovalManager();
@@ -111,6 +116,7 @@ function buildLoop(db: Database, opts: { client?: ITradingClient; runnerCalls?: 
     config: { enabled: true, tickMs: 5_000, syncIntervalMs: 60_000, liquidationProgressThreshold: 0.8 },
     tradingClient: opts.client ?? stubClient(),
     alertRules,
+    newsService,
     notifications,
     priceCache,
     approvalManager,

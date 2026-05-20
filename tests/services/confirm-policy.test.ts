@@ -124,6 +124,19 @@ describe("describeConfirm — ghost_place_order", () => {
     });
     expect(out.title.endsWith("?")).toBe(true);
   });
+
+  test("market place_order leaves wizard entry undefined (no markPrice fallback)", () => {
+    const out = describeConfirm("ghost_place_order", {
+      symbol: "BTC",
+      side: "buy",
+      size: 0.1,
+      leverage: 5,
+    });
+    expect(out.wizard?.kind).toBe("open_position");
+    if (out.wizard?.kind === "open_position") {
+      expect(out.wizard.entryPrice).toBeUndefined();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -198,6 +211,43 @@ describe("describeConfirm — ghost_bracket_order", () => {
       "SL: $80,346",
       "TP: $81,508",
     ]);
+  });
+
+  test("bracket schema has no orderType — limit is derived from entryPrice presence", () => {
+    // Regression: `ghost_bracket_order` schema doesn't expose `orderType` so
+    // the agent never passes it. Limit must be inferred from `entryPrice`
+    // (mirrors `risk.ts` executor). Previously the wizard showed MARKET even
+    // when the user picked a limit price.
+    const out = describeConfirm("ghost_bracket_order", {
+      symbol: "BTC",
+      side: "buy",
+      size: 0.5,
+      entryPrice: 60000,
+      stopLoss: 58000,
+      takeProfit: 64000,
+      leverage: 10,
+      // NB: no orderType field
+    });
+    expect(out.bullets[0]).toBe("Entry: limit @ $60,000.00");
+    expect(out.wizard?.kind).toBe("open_position");
+    if (out.wizard?.kind === "open_position") {
+      expect(out.wizard.orderType).toBe("limit");
+    }
+  });
+
+  test("market bracket order leaves wizard entry undefined (no markPrice fallback)", () => {
+    const out = describeConfirm("ghost_bracket_order", {
+      symbol: "BTC",
+      side: "buy",
+      size: 0.1,
+      stopLoss: 60000,
+      takeProfit: 70000,
+      leverage: 5,
+    });
+    expect(out.bullets[0]).toBe("Entry: market");
+    if (out.wizard?.kind === "open_position") {
+      expect(out.wizard.entryPrice).toBeUndefined();
+    }
   });
 
   test("market orderType ignores any stray entryPrice", () => {
@@ -432,9 +482,12 @@ describe("describeConfirm — ghost_adjust_margin", () => {
 // ---------------------------------------------------------------------------
 
 describe("describeConfirm — defensive paths", () => {
-  test("unknown tool name — generic fallback title", () => {
+  test("unknown tool name — verb-first fallback title (no 'Confirm' prefix)", () => {
+    // The describer fallback returns a verb-first title because
+    // `prefixConfirmTitle` is the single source of the word "Confirm"
+    // at the runtime caller layer — see prefixConfirmTitle tests above.
     const out = describeConfirm("ghost_some_new_tool", { symbol: "BTC" });
-    expect(out.title).toBe("Confirm ghost_some_new_tool?");
+    expect(out.title).toBe("Run ghost_some_new_tool?");
     expect(out.bullets).toEqual([]);
   });
 
@@ -462,6 +515,102 @@ describe("describeConfirm — defensive paths", () => {
     for (const [name, params] of cases) {
       const out = describeConfirm(name, params);
       expect(out.title.endsWith("?")).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// describeConfirm — wizard payload (Epic 23 / Plan 1)
+// ---------------------------------------------------------------------------
+
+describe("describeConfirm — wizard payload", () => {
+  test("ghost_place_order returns wizard.kind = 'open_position'", () => {
+    const d = describeConfirm("ghost_place_order", {
+      symbol: "BTC",
+      side: "buy",
+      size: 1,
+      leverage: 10,
+      orderType: "limit",
+      price: 62342,
+    });
+    expect(d.wizard?.kind).toBe("open_position");
+    if (d.wizard?.kind === "open_position") {
+      expect(d.wizard.symbol).toBe("BTC");
+      expect(d.wizard.side).toBe("long");
+      expect(d.wizard.leverage).toBe(10);
+    }
+  });
+
+  test("ghost_cancel_all_orders has no wizard", () => {
+    const d = describeConfirm("ghost_cancel_all_orders", {});
+    expect(d.wizard).toBeUndefined();
+  });
+
+  test("ghost_place_order market with default leverage builds open_position", () => {
+    const d = describeConfirm("ghost_place_order", {
+      symbol: "btc",
+      side: "sell",
+      size: 0.5,
+    });
+    expect(d.wizard).toMatchObject({
+      kind: "open_position",
+      symbol: "BTC",
+      side: "short",
+      orderType: "market",
+      leverage: 1,
+      size: 0.5,
+    });
+  });
+
+  test("ghost_bracket_order ships SL/TP in wizard", () => {
+    const d = describeConfirm("ghost_bracket_order", {
+      symbol: "ETH",
+      side: "buy",
+      size: 5,
+      leverage: 5,
+      orderType: "limit",
+      entryPrice: 2500,
+      stopLoss: 2400,
+      takeProfit: 2700,
+    });
+    expect(d.wizard?.kind).toBe("open_position");
+    if (d.wizard?.kind === "open_position") {
+      expect(d.wizard.stopLoss).toBe(2400);
+      expect(d.wizard.takeProfit).toBe(2700);
+    }
+  });
+
+  test("ghost_set_sl_tp does NOT ship a wizard (title + bullets only)", () => {
+    // The conversation text above the card carries the rationale, and the
+    // ActionCard title + bullets restate the levels. A wizard would just
+    // duplicate the bullet content.
+    const d = describeConfirm("ghost_set_sl_tp", {
+      symbol: "BTC",
+      stopLoss: 60000,
+      takeProfit: 70000,
+    });
+    expect(d.wizard).toBeUndefined();
+  });
+
+  test("ghost_partial_close ships generic with closePct + sizeBefore", () => {
+    const d = describeConfirm("ghost_partial_close", {
+      symbol: "BTC",
+      percentage: 50,
+      sizeBefore: 1,
+    });
+    expect(d.wizard?.kind).toBe("generic");
+    if (d.wizard?.kind === "generic") {
+      const flat = d.wizard.groups.flatMap((g) => g.rows);
+      expect(flat.some((r) => r.label === "Close %")).toBe(true);
+    }
+  });
+
+  test("ghost_adjust_margin ships generic with marginBefore/after", () => {
+    const d = describeConfirm("ghost_adjust_margin", { symbol: "BTC", amount: 100 });
+    expect(d.wizard?.kind).toBe("generic");
+    if (d.wizard?.kind === "generic") {
+      const labels = d.wizard.groups.flatMap((g) => g.rows.map((r) => r.label));
+      expect(labels).toContain("Margin change");
     }
   });
 });

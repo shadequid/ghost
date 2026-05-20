@@ -4,6 +4,11 @@ import type { ChatMessage, ToolCallEntry } from '@/lib/chatTypes';
 import { cleanDisplayText } from '@/lib/chatTypes';
 import { inlineErrorText, isKnownErrorType, type GhostErrorType } from '@/lib/inline-error-text';
 import type { ConfirmationData } from '@/lib/confirmation-types';
+import type {
+  ActionCardData,
+  ActionCardStatus,
+} from '@/lib/action-card-types';
+import { extractAskBlocks } from '@/lib/parseAskBlock';
 import type { ThinkingPhase } from '@/components/chat/thinking-utils';
 
 interface ChatEventDeps {
@@ -61,10 +66,19 @@ export function useChatEvents(deps: ChatEventDeps) {
   const streamingRafRef = useRef<number | null>(null);
   const streamingRefs: StreamingRefs = { streamingRafRef, streamingMsgIdRef, streamingTextRef };
 
-  /** Remove the streaming flag from a message and update its content. */
+  /** Remove the streaming flag from a message, update its content, and
+   *  extract any `<AskUserQuestion>` blocks the agent emitted (those
+   *  render as AskCard(s) below the message; the source markup is
+   *  stripped). */
   function finalizeMsg(m: ChatMessage, content: string, toolCalls?: ToolCallEntry[]): ChatMessage {
     const { streaming: _, ...rest } = m;
-    return { ...rest, content, ...(toolCalls ? { toolCalls } : {}) };
+    const { stripped, blocks } = extractAskBlocks(content);
+    return {
+      ...rest,
+      content: stripped,
+      ...(toolCalls ? { toolCalls } : {}),
+      ...(blocks.length > 0 ? { askBlocks: blocks } : {}),
+    };
   }
 
   useEffect(() => {
@@ -161,10 +175,15 @@ export function useChatEvents(deps: ChatEventDeps) {
           // Update confirmation card with execution outcome
           const aid = executingApprovalRef.current;
           if (aid) {
-            const outcome = success === false ? 'failed' : 'executed';
+            const outcome: ActionCardStatus = success === false ? 'failed' : 'executed';
+            const wizardSibling = `${aid}:wizard`;
             executingApprovalRef.current = null;
             d.setMessages((prev) =>
-              prev.map((m) => m.id === aid ? { ...m, status: outcome } : m),
+              prev.map((m) =>
+                m.id === aid || m.id === wizardSibling
+                  ? { ...m, status: outcome, actionStatus: outcome }
+                  : m,
+              ),
             );
           }
 
@@ -330,6 +349,17 @@ export function useChatEvents(deps: ChatEventDeps) {
               );
             }
 
+            const wizard = preview.wizard;
+            const suggestedValue = preview.suggestedValue;
+            const actions = preview.steps;
+            const actionData: ActionCardData = {
+              mode: 'single',
+              approvalId,
+              title: preview.actionLabel,
+              actions: actions && actions.length > 0 ? actions : undefined,
+              suggestedValue,
+            };
+
             d.setMessages((prev) => {
               const next = [...prev];
               if (streamedText && !sid) {
@@ -340,14 +370,25 @@ export function useChatEvents(deps: ChatEventDeps) {
                   timestamp: new Date(),
                 });
               }
+              if (wizard) {
+                next.push({
+                  id: `${approvalId}:wizard`,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: new Date(),
+                  type: 'wizard',
+                  wizardData: wizard,
+                  actionStatus: 'pending',
+                });
+              }
               next.push({
                 id: approvalId,
                 role: 'assistant',
                 content: preview.summary ?? '',
                 timestamp: new Date(),
-                type: 'confirmation',
-                data: { ...preview, approvalId },
-                status: 'pending',
+                type: 'action',
+                actionData,
+                actionStatus: 'pending',
               });
               return next;
             });
@@ -358,29 +399,27 @@ export function useChatEvents(deps: ChatEventDeps) {
         case 'trading.approval.resolved': {
           const resolvedId = payload?.approvalId as string | undefined;
           const decision = payload?.decision as string | undefined;
-          if (resolvedId && decision === 'approved') {
+          if (!resolvedId) break;
+          const wizardSibling = `${resolvedId}:wizard`;
+          const applyStatus = (next: ActionCardStatus) =>
+            d.setMessages((prev) =>
+              prev.map((m) =>
+                m.id !== resolvedId && m.id !== wizardSibling
+                  ? m
+                  : { ...m, status: next, actionStatus: next },
+              ),
+            );
+          if (decision === 'approved') {
             executingApprovalRef.current = resolvedId;
-            d.setMessages((prev) =>
-              prev.map((m) =>
-                m.id === resolvedId ? { ...m, status: 'executing' } : m,
-              ),
-            );
-          } else if (resolvedId && decision === 'rejected') {
-            d.setMessages((prev) =>
-              prev.map((m) =>
-                m.id === resolvedId ? { ...m, status: 'rejected' } : m,
-              ),
-            );
-          } else if (resolvedId && decision === 'expired') {
+            applyStatus('executing');
+          } else if (decision === 'rejected') {
+            applyStatus('rejected');
+          } else if (decision === 'expired') {
             // Expired: the card shows the outcome on its own. Suppress any
             // follow-up agent text ("Cancelled...") so the user sees a clean
             // state transition without a redundant chat bubble.
             d.suppressResponseRef.current = true;
-            d.setMessages((prev) =>
-              prev.map((m) =>
-                m.id === resolvedId ? { ...m, status: 'expired' } : m,
-              ),
-            );
+            applyStatus('expired');
           }
           break;
         }
@@ -392,10 +431,15 @@ export function useChatEvents(deps: ChatEventDeps) {
           const aid = executingApprovalRef.current;
           if (aid) {
             const success = payload?.success as boolean | undefined;
-            const outcome = success === false ? 'failed' : 'executed';
+            const outcome: ActionCardStatus = success === false ? 'failed' : 'executed';
+            const wizardSibling = `${aid}:wizard`;
             executingApprovalRef.current = null;
             d.setMessages((prev) =>
-              prev.map((m) => m.id === aid ? { ...m, status: outcome } : m),
+              prev.map((m) =>
+                m.id === aid || m.id === wizardSibling
+                  ? { ...m, status: outcome, actionStatus: outcome }
+                  : m,
+              ),
             );
           }
           break;

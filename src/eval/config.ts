@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 /**
- * Default skill list loaded into scenario-gen context. Covers Ghost's 6 core
+ * Default skill list loaded into scenario-gen context. Covers Ghost's core
  * trading skills. Exported so regen (and any future dataset tooling) can
  * reuse the same default instead of redeclaring it.
  */
@@ -14,6 +14,7 @@ export const DEFAULT_EVAL_SKILLS: readonly string[] = [
   "technical-analysis",
   "pre-trade-advisory",
   "trade-executor",
+  "ask-user-questions",
   "risk-manager",
   "position-monitor",
 ];

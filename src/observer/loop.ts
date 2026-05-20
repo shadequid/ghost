@@ -33,6 +33,7 @@ import type { Runner } from "../agent/runner.js";
 import type { ContextBuilder } from "../agent/context-builder.js";
 import type { ITradingClient } from "../services/interfaces/trading-client.js";
 import type { AlertRulesService } from "../services/alert-rules.js";
+import type { NewsService } from "../services/news.js";
 import type { NotificationsService, NotificationKind } from "../services/notifications.js";
 import type { PriceCache } from "../services/price-cache.js";
 import type { ApprovalManager } from "../gateway/approval.js";
@@ -46,6 +47,7 @@ import {
   ObserverStateStore,
   RECENT_CANCEL_OIDS_CAP,
   RECENT_FILL_IDS_CAP,
+  RECENT_NEWS_IDS_CAP,
   type ObserverSnapshot,
   type PositionSnapshot,
 } from "./state-store.js";
@@ -149,6 +151,7 @@ export interface ObserverLoopDeps {
   config: ObserverConfig;
   tradingClient: ITradingClient;
   alertRules: AlertRulesService;
+  newsService: NewsService;
   notifications: NotificationsService;
   priceCache: PriceCache;
   approvalManager: ApprovalManager;
@@ -238,11 +241,18 @@ export class ObserverLoop {
     }
 
     // -----------------------------------------------------------------
-    // 3. Detect — pure predicates over (rest + alertRules + priceCache).
+    // 3. Detect — pure predicates over (rest + alertRules + priceCache + news).
+    //    News query gates on "user has at least one open position": F18
+    //    scope is news impact on held positions; flat user has nothing
+    //    actionable, and the /news widget already covers passive reading.
     // -----------------------------------------------------------------
     const currentOpenOrderIds = rest.openOrders.map((o) => o.orderId);
     const prices = this.deps.priceCache.snapshot();
     const alertRules = this.deps.alertRules.list();
+
+    const articles = rest.positions.length === 0
+      ? []
+      : this.deps.newsService.listRecentRelevant(newsScanSinceTs(prior.lastNewsScanTs, nowMs));
 
     const diff = diffSnapshot({
       prior,
@@ -253,6 +263,7 @@ export class ObserverLoop {
       alertRules,
       prices,
       liqProgressThreshold: this.deps.config.liquidationProgressThreshold,
+      articles,
       nowMs,
     });
 
@@ -322,6 +333,12 @@ export class ObserverLoop {
         diff.emittedFillIds,
         RECENT_FILL_IDS_CAP,
       ),
+      recentEmittedNewsIds: mergeBoundedIds(
+        prior.recentEmittedNewsIds,
+        diff.emittedNewsIds,
+        RECENT_NEWS_IDS_CAP,
+      ),
+      lastNewsScanTs: maxArticlePublishedAtSec(articles, prior.lastNewsScanTs),
     };
     const scanCounts = {
       positions: rest.positions.length,
@@ -444,6 +461,7 @@ export class ObserverLoop {
       } else {
         rest = this.cachedRest!;
       }
+      // No news under confirm gate — next post-confirm tick picks them up.
       const diff = diffSnapshot({
         prior,
         positions: rest.positions,
@@ -453,6 +471,7 @@ export class ObserverLoop {
         alertRules: this.deps.alertRules.list(),
         prices: this.deps.priceCache.snapshot(),
         liqProgressThreshold: this.deps.config.liquidationProgressThreshold,
+        articles: [],
         nowMs,
       });
       this.store.save({
@@ -466,6 +485,8 @@ export class ObserverLoop {
           diff.emittedFillIds,
           RECENT_FILL_IDS_CAP,
         ),
+        recentEmittedNewsIds: prior.recentEmittedNewsIds,
+        lastNewsScanTs: prior.lastNewsScanTs,
       });
     } catch (err) {
       this.deps.logger.warn({ err }, "observer: baseline refresh failed under confirm gate");
@@ -670,7 +691,33 @@ function mapKindFromEventType(t: string | null): NotificationKind {
       return "order_canceled";
     case "order_filled":
       return "order_filled";
+    case "news":
+      return "news";
     default:
       return "proactive";
   }
+}
+
+/**
+ * Sliding lookback floor for `NewsService.listRecentRelevant(sinceTs)`.
+ * Bounds the query slice so a stale `lastNewsScanTs` (or first run) doesn't
+ * pull the entire articles table.
+ */
+export const NEWS_LOOKBACK_FLOOR_SEC = 30 * 60;
+
+/** Anchor or sliding floor, whichever is newer. */
+export function newsScanSinceTs(lastScanTs: number, nowMs: number): number {
+  const slidingFloor = Math.floor(nowMs / 1000) - NEWS_LOOKBACK_FLOOR_SEC;
+  return lastScanTs > slidingFloor ? lastScanTs : slidingFloor;
+}
+
+function maxArticlePublishedAtSec(
+  articles: ReadonlyArray<{ publishedAt: number }>,
+  prior: number,
+): number {
+  let max = prior;
+  for (const a of articles) {
+    if (a.publishedAt > max) max = a.publishedAt;
+  }
+  return max;
 }

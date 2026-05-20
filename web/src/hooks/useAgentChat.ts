@@ -326,6 +326,22 @@ export function useAgentChat() {
     resolveApproval(approvalId, 'rejected', reason);
   }, [resolveApproval]);
 
+  const handleSubmitAsk = useCallback(
+    (messageId: string, reply: string) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, askSubmitted: true } : m)),
+      );
+      handleSend(reply);
+    },
+    [handleSend],
+  );
+
+  const handleDismissAsk = useCallback((messageId: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, askSubmitted: true } : m)),
+    );
+  }, []);
+
   const isBusy = chatRunId !== null || chatSending;
   const showEmptyState = messages.length === 0 && !chatRunId && !sessionLoading;
 
@@ -335,7 +351,7 @@ export function useAgentChat() {
     queue, activeToolCalls, userScrolledUp, hasNewContent,
     thinkingPhase, thinkingDetail,
     messagesEndRef, scrollContainerRef, scrollToBottom,
-    handleSend, handleAbort, handleReconnect, handleApprove, handleReject,
+    handleSend, handleAbort, handleReconnect, handleApprove, handleReject, handleSubmitAsk, handleDismissAsk,
     switchSession, removeFromQueue,
     connected, disconnected, isBusy, showEmptyState, paperMode,
   };

@@ -3,6 +3,7 @@ import { memo, useState, useCallback, type ReactNode } from 'react';
 // they load on demand when the first assistant message renders.
 import { StreamingMarkdown } from './StreamingMarkdown.lazy';
 import { ConfirmationCard } from './ConfirmationCard';
+import { WizardCard } from './WizardCard';
 import { InlineConfirmButtons } from './InlineConfirmButtons';
 import { hasInlineConfirm, stripConfirmText, confirmBorderColor } from './InlineConfirmButtons-utils';
 import { ToolCallChips } from './ToolCallChips';
@@ -149,12 +150,20 @@ export const MessageBubble = memo(function MessageBubble({ message, onAction, on
       className={`mb-row message-enter flex flex-col gap-0 ${isUser ? 'items-end' : 'items-start'}`}
     >
       {message.type === 'confirmation' && message.data && onApprove && onReject ? (
+        // LEGACY: only for replay of pre-split session JSONL. New flows use 'wizard' + 'action'.
         <ConfirmationCard
           data={message.data}
           status={message.status ?? 'pending'}
           onApprove={onApprove}
           onReject={onReject}
         />
+      ) : message.type === 'wizard' && message.wizardData ? (
+        <WizardCard data={message.wizardData} status={message.actionStatus} />
+      ) : message.type === 'action' && message.actionData ? (
+        // ActionCard is docked at the ChatInput slot in AgentChat.tsx — see
+        // the `pendingActionMessage` branch there. Resolved cards intentionally
+        // drop from the stream so the chat history stays focused on dialog.
+        null
       ) : isError ? (
         // Error bubble: soft error-tinted background + 3px destructive left
         // edge + leading alert icon. Retry rendered as a pill button on the
@@ -244,7 +253,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onAction, on
           `mb-actions` keeps the whole row hidden until hover/focus —
           per chat design, the timestamp shouldn't compete with the
           message content at rest. */}
-      {!message.streaming && message.type !== 'confirmation' && (
+      {!message.streaming && message.type !== 'confirmation' && message.type !== 'wizard' && message.type !== 'action' && (
         <div
           className={`mb-actions flex items-center gap-1.5 mt-0.5 ${isUser ? 'self-end' : ''}`}
         >

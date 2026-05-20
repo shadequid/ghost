@@ -34,7 +34,7 @@ Parse, advise, confirm, and execute trading operations on Hyperliquid.
 | price | For limit | Required when type = limit |
 | leverage | No | If specified, set before placing. |
 
-**If anything is missing — ask. Never guess quantity. This is real money.**
+**If anything is missing — ask the user. Never guess quantity. This is real money.**
 
 ## Conversation Flow — Multi-Turn
 

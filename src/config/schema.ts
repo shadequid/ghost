@@ -59,7 +59,6 @@ export const agentSchema = z.object({
 
 export const cronSchema = z.object({
   enableScheduler: z.boolean().default(true),
-  timezone: z.string().default("UTC"),
   maxConcurrentJobs: z.coerce.number().int().positive().default(5),
 });
 

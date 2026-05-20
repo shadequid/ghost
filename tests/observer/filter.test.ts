@@ -10,6 +10,7 @@ function snapshot(overrides: Partial<ObserverSnapshot> = {}): ObserverSnapshot {
     openOrderIds: [],
     lastRestSyncAtMs: 0,
     recentCancelOids: [], recentEmittedFillIds: [],
+    recentEmittedNewsIds: [], lastNewsScanTs: 0,
     ...overrides,
   };
 }

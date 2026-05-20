@@ -1,13 +1,19 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
+import { Database } from "bun:sqlite";
 import { MethodRegistry, type MethodContext } from "../../src/gateway/method-registry.js";
 import { registerCronMethods } from "../../src/gateway/cron.js";
 import { CronService } from "../../src/scheduler/service.js";
-import { mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
+
+function makeDb(): Database {
+  const db = new Database(":memory:");
+  // CronService only needs cron_jobs — run that migration directly.
+  const m = DB_MIGRATIONS.find((x) => x.version === 10)!;
+  (m.up as (db: Database) => void)(db);
+  return db;
+}
 
 describe("cron methods", () => {
-  let tmpDir: string;
   let service: CronService;
   let reg: MethodRegistry;
   let broadcasts: Array<{ event: string; payload: unknown }>;
@@ -21,15 +27,10 @@ describe("cron methods", () => {
   }
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "ghost-cron-test-"));
-    service = new CronService(join(tmpDir, "cron", "jobs.json"));
+    service = new CronService(makeDb());
     reg = new MethodRegistry();
     broadcasts = [];
     registerCronMethods(reg.register.bind(reg), { cronService: service });
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   test("cron.list returns empty initially", async () => {

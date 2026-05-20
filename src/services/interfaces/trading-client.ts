@@ -5,7 +5,7 @@
 import type {
   Balance, Position, OpenOrder, Fill, Ticker, Kline, Orderbook,
   PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult,
-  OrderRecord,
+  OrderRecord, TokenInfo,
 } from "./trading-types.js";
 
 /**
@@ -67,6 +67,8 @@ export interface ITradingClient {
   getMaxLeverage(symbol: string): number | undefined;
   /** All known asset names across native + HIP-3 dexes after ensureMeta. */
   getAllAssetNames(): string[];
+  /** Per-asset meta with the HL delisted flag — for callers that surface it (e.g. snapshot). */
+  getAllAssets(): ReadonlyArray<TokenInfo>;
   /** Whether a symbol (after resolveSymbol) is in the loaded universe. */
   isKnownSymbol(symbol: string): boolean;
   /** Per-dex ordered symbol lists. Key "" = native. Read-only view. */

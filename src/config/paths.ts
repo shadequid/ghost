@@ -63,11 +63,6 @@ export function getEvalConfigPath(): string {
   return join(getGhostDir(), "eval.json");
 }
 
-/** Path to cron jobs store. */
-export function getCronStorePath(): string {
-  return join(getWorkspaceDir(), "cron", "jobs.json");
-}
-
 /** Claude CLI workspace directory for CLAUDE.md and skills. */
 export function getCliWorkspacePath(): string {
   return join(getGhostDir(), "cli-workspace");

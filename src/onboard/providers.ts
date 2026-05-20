@@ -1,6 +1,5 @@
 import { getProviders, getModels } from "@mariozechner/pi-ai";
 import type { KnownProvider } from "@mariozechner/pi-ai";
-import { getClaudeCliModels } from "../providers/claude-cli/models.js";
 import { filterModelCatalog } from "../providers/model-catalog.js";
 
 export interface ProviderInfo {
@@ -20,7 +19,6 @@ const PROVIDER_META: Record<string, { label: string; description: string; tier: 
   "anthropic": { label: "Anthropic", description: "Claude Sonnet & Opus (direct)", tier: 0, apiKeyUrl: "https://console.anthropic.com/settings/keys" },
   "openai": { label: "OpenAI", description: "GPT-4o, GPT-5 (direct)", tier: 0, apiKeyUrl: "https://platform.openai.com/api-keys" },
   "openai-codex": { label: "OpenAI Codex", description: "ChatGPT subscription (OAuth, no API key)", tier: 0 },
-  "claude-cli": { label: "Claude Code", description: "Use Claude Code subscription (no API key)", tier: 0 },
   "google": { label: "Google Gemini", description: "Gemini 2.0 Flash & Pro", tier: 0, apiKeyUrl: "https://aistudio.google.com/app/apikey" },
   "google-gemini-cli": { label: "Google Gemini CLI", description: "Gemini via CLI auth", tier: 0 },
   "xai": { label: "xAI", description: "Grok 3 & 4", tier: 0, apiKeyUrl: "https://console.x.ai" },
@@ -78,16 +76,6 @@ export function getProviderList(): ProviderInfo[] {
     }
   }
 
-  // Add claude-cli option (not in pi-ai registry)
-  list.push({
-    id: "claude-cli",
-    label: "Claude Code",
-    description: "Use Claude Code subscription (no API key)",
-    tier: 0,
-    tierLabel: TIER_LABELS[0] ?? "Other",
-    supportsOAuth: false,
-  });
-
   // Add custom option
   list.push({
     id: "custom",
@@ -121,11 +109,6 @@ export function getProviderList(): ProviderInfo[] {
 }
 
 export function getModelList(providerId: string): Array<{ id: string; name: string }> {
-  // Claude CLI — fixed model list (not in pi-ai registry); bypasses filter.
-  if (providerId === "claude-cli") {
-    return getClaudeCliModels();
-  }
-
   try {
     const raw = getModels(providerId as KnownProvider).map((m) => ({ id: m.id, name: m.name || m.id }));
     return filterModelCatalog(providerId, raw);

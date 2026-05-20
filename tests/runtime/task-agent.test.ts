@@ -19,11 +19,13 @@ import { NOOP_LOGGER } from "../../src/logger.js";
 import { EMPTY_CUSTOM_MODEL_REGISTRY } from "../../src/providers/models-config.js";
 import { Database } from "bun:sqlite";
 import { initDatabase } from "../../src/core/database.js";
+import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
 import { CredentialStore } from "../../src/config/credentials.js";
 import { SecretStore } from "../../src/config/secrets.js";
 import { createToolRegistry } from "../../src/tools/index.js";
 import { CronService } from "../../src/scheduler/service.js";
 import { MemoryStore } from "../../src/memory/store.js";
+import type { TimezoneService } from "../../src/services/timezone.js";
 import { getModel } from "@mariozechner/pi-ai";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -90,9 +92,14 @@ function makeSharedDeps() {
   const oauthManager = new OAuthManager(credentials);
   const approvalManager = new ApprovalManager();
   const eventBus = new EventBus(NOOP_LOGGER);
-  const cronService = new CronService(join(tmpDir, "cron.json"));
+  // Isolated DB for CronService — only the cron_jobs migration is needed here.
+  const cronDb = new Database(":memory:");
+  const cronMigration = DB_MIGRATIONS.find((m) => m.version === 10)!;
+  (cronMigration.up as (db: Database) => void)(cronDb);
+  const cronService = new CronService(cronDb);
   const memoryStore = new MemoryStore(tmpDir);
-  const tools = createToolRegistry(security, { cronService, defaultTimezone: "UTC", memoryStore, logger: NOOP_LOGGER });
+  const timezoneService: TimezoneService = { get: () => "UTC", set: () => ({ ok: true as const, tz: "UTC" }) };
+  const tools = createToolRegistry(security, { cronService, timezoneService, memoryStore, logger: NOOP_LOGGER });
   // anthropic haiku is a real built-in model — no network needed for construction
   const model = getModel("anthropic", "claude-3-5-haiku-20241022")!;
 

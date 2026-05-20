@@ -31,6 +31,7 @@ import {
 import { telegramPlugin } from "../channels/telegram/plugin.js";
 import { ChannelId } from "../channels/types.js";
 import { ChannelEvents } from "../events/pairing-events.js";
+import { buildBuiltInJobs } from "../scheduler/defaults.js";
 
 import type { PaperConfig } from "../config/schema.js";
 import type { Logger } from "pino";
@@ -172,6 +173,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     tweetService,
     xFollowService,
     preferenceStore,
+    timezoneService,
     security,
     leakDetector,
     skillService,
@@ -237,6 +239,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     tools,
     sessionManager,
     cronService,
+    timezoneService,
     configPath,
     channels: runtime.channelManager.listChannels().map((ch) => ({ name: ch.name })),
     tradingClient,
@@ -289,7 +292,9 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   // 9. Start channels + scheduler AFTER all deps are wired.
   void runtime.channelManager.startAllChannels();
   if (config.cron.enableScheduler) {
-    cronService.start();
+    // Seed built-in jobs with the stored TZ (snapshot is intentional — subsequent
+    // changes go through cronService.updateBuiltinJobsTimezone(tz) via the gateway RPC).
+    cronService.start({ defaults: buildBuiltInJobs(timezoneService.get()) });
   }
 
   // 10. Start background jobs BEFORE walletReady so news/X initial kicks run

@@ -1,6 +1,7 @@
 import {
   intro,
   select,
+  autocomplete,
   text,
   spinner,
   log,
@@ -21,6 +22,7 @@ import {
   getSecretKeyPath,
   getCredentialsPath,
   getModelsConfigPath,
+  getDbPath,
 } from "../config/paths.js";
 import type { Logger } from "pino";
 import type { DaemonOptions } from "../daemon/index.js";
@@ -32,6 +34,33 @@ import {
   PROVIDER_NAME_REGEX,
 } from "../providers/models-config.js";
 import { applyUpdateModeChanges } from "./wizard-update-config.js";
+import {
+  detectHostTimezone,
+  validateTimezone,
+  createTimezoneService,
+} from "../services/timezone.js";
+import { PreferenceStore } from "../services/preferences.js";
+import { initDatabase } from "../core/database.js";
+import { runDbMigrations } from "../core/migrations/db.js";
+import { DB_MIGRATIONS } from "../core/migrations/registry.js";
+
+/**
+ * Open the database, run migrations, and persist the timezone to settings_kv.
+ * Called once at the end of onboard (both headless and interactive paths).
+ */
+async function persistTimezone(tz: string, logger: Logger): Promise<void> {
+  try {
+    const db = initDatabase(getDbPath());
+    await runDbMigrations(db, DB_MIGRATIONS);
+    const prefs = new PreferenceStore(db, logger.child({ module: "prefs" }));
+    const tzService = createTimezoneService(prefs);
+    tzService.set(tz);
+    db.close();
+  } catch (err) {
+    // Non-fatal — daemon will fall back to UTC until user updates via web UI.
+    logger.warn({ err }, "onboard: failed to persist timezone");
+  }
+}
 
 /** Validate a custom provider name for models.json. */
 function validateCustomProviderName(name: string): string | undefined {
@@ -50,38 +79,6 @@ function isLocalBaseUrl(url: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/u.test(url);
 }
 
-/** Validate Claude CLI binary exists and is authenticated. */
-async function validateClaudeCli(binaryPath: string): Promise<{
-  ok: boolean;
-  version?: string;
-  authStatus?: string;
-  error?: string;
-}> {
-  const which = Bun.spawnSync({ cmd: ["which", binaryPath] });
-  if (which.exitCode !== 0) {
-    return { ok: false, error: `Claude Code not found at "${binaryPath}". Install: curl -fsSL https://claude.ai/install.sh | bash` };
-  }
-
-  const versionProc = Bun.spawnSync({ cmd: [binaryPath, "--version"] });
-  const version = versionProc.stdout.toString().trim();
-
-  const authProc = Bun.spawnSync({ cmd: [binaryPath, "auth", "status", "--json"] });
-  if (authProc.exitCode !== 0) {
-    return { ok: false, version, error: "Not authenticated. Run: claude login" };
-  }
-
-  try {
-    const auth = JSON.parse(authProc.stdout.toString());
-    const authenticated = auth.authenticated ?? auth.loggedIn ?? false;
-    if (!authenticated) {
-      return { ok: false, version, error: "Not authenticated. Run: claude login" };
-    }
-    return { ok: true, version, authStatus: auth.plan ?? auth.subscription ?? "authenticated" };
-  } catch {
-    return { ok: true, version, authStatus: "authenticated" };
-  }
-}
-
 /** Options for non-interactive (headless) onboarding via CLI flags. */
 export interface HeadlessOptions {
   readonly provider: string;
@@ -95,9 +92,8 @@ type WizardOptions = Omit<DaemonOptions, "configPath"> & {
 
 // Note: WizardOptions.logger is required (inherited from DaemonOptions).
 
-/** A provider does NOT require an API key if it uses OAuth or CLI-based auth. */
-function providerRequiresApiKey(providerId: string, supportsOAuth: boolean): boolean {
-  if (providerId === "claude-cli") return false;
+/** A provider does NOT require an API key if it uses OAuth. */
+function providerRequiresApiKey(_providerId: string, supportsOAuth: boolean): boolean {
   if (supportsOAuth) return false;
   return true;
 }
@@ -147,6 +143,9 @@ export async function runHeadless(
       customConfig.secrets.encrypt = true;
       if (daemonOptions.paper) customConfig.paper = daemonOptions.paper;
       saveConfig(customConfig, configPath);
+
+      const tzForCustom = resolveHeadlessTz(daemonOptions.logger);
+      await persistTimezone(tzForCustom, daemonOptions.logger);
 
       console.log(`[ghost] Custom provider: ${headless.provider} (from models.json)`);
       console.log(`[ghost] Model:    ${modelTrimmed}`);
@@ -246,8 +245,13 @@ export async function runHeadless(
 
   saveConfig(config, configPath);
 
+  // Persist timezone: GHOST_TIMEZONE env > host detection. No prompt in headless.
+  const tz = resolveHeadlessTz(daemonOptions.logger);
+  await persistTimezone(tz, daemonOptions.logger);
+
   console.log(`[ghost] Provider: ${providerInfo.label} (${headless.provider})`);
   console.log(`[ghost] Model:    ${model}`);
+  console.log(`[ghost] Timezone: ${tz}`);
   if (daemonOptions?.paper) {
     console.log(`[ghost] Mode:     Paper trading (${daemonOptions.paper.initialBalance ?? 10000} USDC)`);
   }
@@ -256,6 +260,24 @@ export async function runHeadless(
   // Service registration is interactive-only. In headless mode, print a hint.
   console.log("[ghost] Config saved. Run 'ghost onboard --service' to register the auto-start service, or 'ghost daemon' to start manually.");
   console.log("[ghost] Onboard complete!");
+}
+
+/**
+ * Resolve the timezone for headless onboard.
+ * Order: GHOST_TIMEZONE env var > host detection.
+ * Exits non-zero if GHOST_TIMEZONE is set but invalid.
+ */
+function resolveHeadlessTz(logger: Logger): string {
+  const envTz = process.env["GHOST_TIMEZONE"];
+  if (envTz) {
+    const result = validateTimezone(envTz);
+    if (!result.ok) {
+      console.error(`[ghost] GHOST_TIMEZONE="${envTz}" is invalid: ${result.error}`);
+      process.exit(1);
+    }
+    return result.tz;
+  }
+  return detectHostTimezone();
 }
 
 
@@ -301,11 +323,11 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
 
   intro("Welcome to Ghost — the fastest, smallest AI assistant.\nThis wizard will configure your agent in under 60 seconds.");
 
-  // Step 1/6: Trading mode — only asked for full onboard.
+  // Step 1/5: Trading mode — only asked for full onboard.
   // Skipped when --paper CLI flag was already supplied.
   if (mode === "full" && !daemonOptions.paper) {
     const tradingMode = await select({
-      message: "Step 1/6 — Select trading mode",
+      message: "Step 1/5 — Select trading mode",
       options: [
         { value: "paper", label: "Paper trading (simulated, safe to explore)", hint: "10,000 USDC starting balance" },
         { value: "live",  label: "Live trading (real funds on Hyperliquid)" },
@@ -319,17 +341,17 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
     // tradingMode === "live" → leave daemonOptions.paper undefined.
   }
 
-  // Step 2/6: Provider
+  // Step 2/5: Provider
   const providers = getProviderList();
 
   const providerOptions = providers.map((p) => ({
     value: p.id,
-    label: p.label,
+    label: `${p.label} — ${p.tierLabel}`,
     hint: p.description,
   }));
 
   const providerId = await select({
-    message: "Step 2/6 — Select your AI provider",
+    message: "Step 2/5 — Select your AI provider",
     options: providerOptions,
   });
   if (isCancel(providerId)) { cancel("Setup cancelled."); process.exit(0); }
@@ -340,22 +362,6 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
   // Custom providers populate these and persist to ~/.ghost/models.json on save.
   let customProviderName = "";
   let customApiKey = "";
-
-  // Claude CLI: validate binary + auth, select model
-  if (providerId === "claude-cli") {
-    const s1 = spinner();
-    s1.start("Validating Claude Code...");
-    const validation = await validateClaudeCli("claude");
-
-    if (!validation.ok) {
-      s1.stop(`✗ ${validation.error}`);
-      cancel("Fix the issue above and try again.");
-      process.exit(1);
-    }
-
-    s1.stop(`✓ Claude Code ${validation.version ?? ""} (${validation.authStatus})`);
-    authMethod = "skip";
-  }
 
   if (providerId === "custom") {
     // Ask for a provider name first — users often have multiple local backends
@@ -393,7 +399,7 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
     authMethod = "skip";
   }
 
-  // Step 3/6: Model
+  // Step 3/5: Model
   const s = spinner();
   s.start("Fetching models from provider...");
   const models = getModelList(providerId as string);
@@ -406,7 +412,7 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
       { value: "__custom__", label: "Custom model ID (type manually)" },
     ];
     const selected = await select({
-      message: "Step 3/6 — Select your default model",
+      message: "Step 3/5 — Select your default model",
       options: modelOptions,
     });
     if (isCancel(selected)) { cancel("Setup cancelled."); process.exit(0); }
@@ -419,21 +425,21 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
     }
   } else {
     const manual = await text({
-      message: "Step 3/6 — Enter model ID",
+      message: "Step 3/5 — Enter model ID",
       placeholder: "e.g. claude-sonnet-4-6",
     });
     if (isCancel(manual)) { cancel("Setup cancelled."); process.exit(0); }
     modelId = manual as string;
   }
 
-  // Step 4/6: Auth
+  // Step 4/5: Auth
   const providerInfo = providers.find((p) => p.id === providerId);
   let apiKey = "";
   // authMethod was set to "skip" above for local custom providers; otherwise default "apikey"
 
   if (providerInfo?.supportsOAuth && authMethod !== "skip") {
     const auth = await select({
-      message: "Step 4/6 — How do you want to authenticate?",
+      message: "Step 4/5 — How do you want to authenticate?",
       options: [
         { value: "oauth", label: "OAuth Login (authenticate in browser)", hint: "recommended" },
         { value: "apikey", label: "API Key (paste your key)" },
@@ -465,7 +471,7 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
       ? `\n  Get your key at: ${providerInfo.apiKeyUrl}`
       : "";
     const key = await text({
-      message: `Step 4/6 — Paste your ${providerInfo?.label ?? (providerId as string)} API key${keyUrl}`,
+      message: `Step 4/5 — Paste your ${providerInfo?.label ?? (providerId as string)} API key${keyUrl}`,
       placeholder: "sk-...",
       validate: (v) => (!v || v.length >= 5) ? undefined : "API key seems too short",
     });
@@ -473,7 +479,7 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
     apiKey = key as string;
   }
 
-  if (authMethod === "skip" && providerId !== "claude-cli" && providerId !== "custom") {
+  if (authMethod === "skip" && providerId !== "custom") {
     log.warn("No API key set. Export GHOST_API_KEY before running ghost daemon.");
   }
 
@@ -546,12 +552,66 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
 
   saveConfig(config, configPath);
 
+  // Step 5/5: Timezone
+  const chosenTz = await promptTimezone();
+  await persistTimezone(chosenTz, daemonOptions.logger);
+
   log.success("Configuration saved.");
   if (providerId === "custom") {
     log.info(`Custom provider "${customProviderName}" written to ${getModelsConfigPath()}`);
   }
+  log.info(`Timezone: ${chosenTz}`);
   log.info("Tip: connect channels from the dashboard after starting the daemon.");
   console.log("");
 
   await finalizeOnboard({ interactive: true, logger: daemonOptions.logger });
+}
+
+/**
+ * All IANA timezones supported by the runtime, sorted alphabetically.
+ * Returns [] when Intl.supportedValuesOf is unavailable (caller falls back
+ * to a text-input prompt).
+ */
+function listSupportedTimezones(): string[] {
+  const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+  if (typeof fn !== "function") return [];
+  return [...fn("timeZone")].sort();
+}
+
+/**
+ * Interactive TZ prompt — single scrollable select of all IANA timezones,
+ * with the detected host TZ pre-selected so Enter accepts the default.
+ */
+async function promptTimezone(): Promise<string> {
+  const detected = detectHostTimezone();
+  const allZones = listSupportedTimezones();
+
+  // Runtime missing Intl.supportedValuesOf — fall back to free-text prompt.
+  if (allZones.length === 0) {
+    const entered = await text({
+      message: "Step 5/5 — IANA timezone (e.g. America/New_York):",
+      initialValue: detected,
+      validate(value) {
+        const v = validateTimezone(value);
+        return v.ok ? undefined : v.error;
+      },
+    });
+    if (isCancel(entered)) { cancel("Setup cancelled."); process.exit(0); }
+    const result = validateTimezone(entered as string);
+    return result.ok ? result.tz : detected;
+  }
+
+  const initialValue = allZones.includes(detected) ? detected : allZones[0]!;
+  const choice = await autocomplete({
+    message: "Step 5/5 — Select your timezone (type to filter)",
+    placeholder: "e.g. berlin, new_york, utc",
+    options: allZones.map((tz) => ({
+      value: tz,
+      label: tz === detected ? `${tz} (detected)` : tz,
+    })),
+    initialValue,
+    maxItems: 10,
+  });
+  if (isCancel(choice)) { cancel("Setup cancelled."); process.exit(0); }
+  return choice as string;
 }

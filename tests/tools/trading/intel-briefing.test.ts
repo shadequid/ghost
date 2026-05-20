@@ -9,29 +9,30 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { CronService } from "../../../src/scheduler/service.js";
 import { createMorningBriefingTool } from "../../../src/tools/trading/intel-briefing.js";
 import { BRIEFING_PROMPT } from "../../../src/scheduler/defaults.js";
+import { DB_MIGRATIONS } from "../../../src/core/migrations/registry.js";
 
-let tmpDir: string;
-let storePath: string;
+function makeDb(): Database {
+  const db = new Database(":memory:");
+  // CronService only needs cron_jobs — run that migration directly.
+  const m = DB_MIGRATIONS.find((x) => x.version === 10)!;
+  (m.up as (db: Database) => void)(db);
+  return db;
+}
+
 let cronService: CronService;
 
 beforeEach(() => {
-  tmpDir = join(tmpdir(), `ghost-briefing-${Date.now()}`);
-  mkdirSync(tmpDir, { recursive: true });
-  storePath = join(tmpDir, "cron", "jobs.json");
-  cronService = new CronService(storePath);
+  cronService = new CronService(makeDb());
   // Isolated — no default seeding so tool is sole source of jobs
   cronService.start({ defaults: [] });
 });
 
 afterEach(() => {
   cronService.stop();
-  rmSync(tmpDir, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------

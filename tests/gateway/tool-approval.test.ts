@@ -70,11 +70,10 @@ describe("Tool approval via ApprovalManager", () => {
     expect(await trading.promise).toBe("rejected");
   });
 
-  test("supersede expires the previous pending approval", async () => {
-    // The 5-min auto-cancel timer was dropped (web mock v2). The only
-    // remaining producer of `expired` is a same-session supersede — when
-    // a new approval claims a sessionKey that already has a pending one,
-    // the old waiter unblocks with `expired` so callers don't deadlock.
+  test("same-session create() expires the previous pending approval", async () => {
+    // When a new approval claims a sessionKey that already has a pending
+    // one, the old waiter unblocks with `expired` so callers don't deadlock.
+    // No timer-based expiry exists; this is the only path that produces it.
     const mgr = new ApprovalManager();
     const preview = {
       action: "exec",
@@ -84,7 +83,7 @@ describe("Tool approval via ApprovalManager", () => {
     };
 
     const first = mgr.create("tool", preview);
-    mgr.create("tool", preview); // supersede
+    mgr.create("tool", preview);
     const decision = await first.promise;
     expect(decision).toBe("expired");
   });

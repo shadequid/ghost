@@ -16,6 +16,7 @@ export type ObserverEventType =
   | "liquidation_risk"
   | "pnl_snapshot"
   | "price_alert"
+  | "news"
   | "portfolio_pnl_drift";
 
 interface BaseEvent {
@@ -146,6 +147,19 @@ export interface PriceAlertEvent extends BaseEvent {
   note?: string;
 }
 
+export interface NewsEvent extends BaseEvent {
+  type: "news";
+  articleId: string;
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  /** Wall-clock ms — converted from `articles.published_at` (unix seconds). */
+  publishedAt: number;
+  importance: "urgent" | "important" | "reference";
+  coins: string[];
+}
+
 /**
  * Account-wide unrealized PnL has drifted materially while the user has been
  * idle for hours. Emitted by `pnl-drift.ts` once gating passes (threshold +
@@ -173,4 +187,5 @@ export type ObserverEvent =
   | LiquidationRiskEvent
   | PnlSnapshotEvent
   | PriceAlertEvent
+  | NewsEvent
   | PortfolioPnlDriftEvent;

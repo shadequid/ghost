@@ -52,6 +52,7 @@ function mockClient(klines: Kline[]): ITradingClient {
     getMaxLeverage: () => undefined,
     getAllAssetNames: () => [],
     isKnownSymbol: () => false,
+    getAllAssets: () => [],
     getDexUniverses: () => new Map(),
     subscribeAllDexsAssetCtxs: async () => ({ unsubscribe: async () => {} }),
     closeWs: async () => {},

@@ -1,25 +1,22 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, test, expect } from "bun:test";
+import { Database } from "bun:sqlite";
 import { CronService } from "../../src/scheduler/service.js";
 import {
-  BUILT_IN_JOBS,
+  buildBuiltInJobs,
   BRIEFING_PROMPT,
   RECAP_PROMPT,
   detectUserTimezone,
   type DefaultJobSpec,
 } from "../../src/scheduler/defaults.js";
+import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
 
-let tmpDir: string;
-let storePath: string;
-
-beforeEach(() => {
-  tmpDir = join(tmpdir(), `ghost-cron-defaults-${Date.now()}`);
-  mkdirSync(tmpDir, { recursive: true });
-  storePath = join(tmpDir, "cron", "jobs.json");
-});
-afterEach(() => rmSync(tmpDir, { recursive: true, force: true }));
+function makeDb(): Database {
+  const db = new Database(":memory:");
+  // CronService only needs cron_jobs — run that migration directly.
+  const m = DB_MIGRATIONS.find((x) => x.version === 10)!;
+  (m.up as (db: Database) => void)(db);
+  return db;
+}
 
 // ---------------------------------------------------------------------------
 // detectUserTimezone
@@ -33,8 +30,6 @@ describe("detectUserTimezone", () => {
   });
 
   test("falls back to UTC when Intl.DateTimeFormat throws", () => {
-    // Temporarily break Intl.DateTimeFormat to simulate exotic env.
-    // Cast through unknown to avoid fighting the full DateTimeFormatConstructor shape.
     const original = globalThis.Intl;
     try {
       globalThis.Intl = {
@@ -70,16 +65,48 @@ describe("detectUserTimezone", () => {
 });
 
 // ---------------------------------------------------------------------------
-// BUILT_IN_JOBS shape
+// buildBuiltInJobs
 // ---------------------------------------------------------------------------
 
-describe("BUILT_IN_JOBS", () => {
+describe("buildBuiltInJobs", () => {
+  test("returns two jobs", () => {
+    const jobs = buildBuiltInJobs("Asia/Tokyo");
+    expect(jobs).toHaveLength(2);
+  });
+
+  test("both jobs carry the supplied timezone", () => {
+    const jobs = buildBuiltInJobs("America/New_York");
+    for (const j of jobs) {
+      expect(j.schedule.tz).toBe("America/New_York");
+    }
+  });
+
+  test("first job is morning-briefing at 08:00", () => {
+    const jobs = buildBuiltInJobs("UTC");
+    expect(jobs[0]!.name).toBe("morning-briefing");
+    expect(jobs[0]!.schedule.expr).toBe("0 8 * * *");
+  });
+
+  test("second job is evening-recap at 21:00", () => {
+    const jobs = buildBuiltInJobs("UTC");
+    expect(jobs[1]!.name).toBe("evening-recap");
+    expect(jobs[1]!.schedule.expr).toBe("0 21 * * *");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildBuiltInJobs shape (host-TZ snapshot used here matches production path)
+// ---------------------------------------------------------------------------
+
+describe("buildBuiltInJobs — shape", () => {
+  const jobs = buildBuiltInJobs(detectUserTimezone());
+
   test("first entry is morning-briefing", () => {
-    expect(BUILT_IN_JOBS[0].name).toBe("morning-briefing");
+    expect(jobs[0]!.name).toBe("morning-briefing");
   });
 
   test("morning-briefing uses BRIEFING_PROMPT", () => {
-    expect(BUILT_IN_JOBS[0].message).toBe(BRIEFING_PROMPT);
+    expect(jobs[0]!.message).toBe(BRIEFING_PROMPT);
   });
 
   test("BRIEFING_PROMPT is non-empty and mentions morning briefing", () => {
@@ -88,22 +115,22 @@ describe("BUILT_IN_JOBS", () => {
   });
 
   test("morning-briefing schedule is cron at 08:00", () => {
-    const spec = BUILT_IN_JOBS[0];
+    const spec = jobs[0]!;
     expect(spec.schedule.kind).toBe("cron");
     expect(spec.schedule.expr).toBe("0 8 * * *");
     expect(spec.schedule.tz).toBeTruthy();
   });
 
   test("morning-briefing has deliver=true", () => {
-    expect(BUILT_IN_JOBS[0].deliver).toBe(true);
+    expect(jobs[0]!.deliver).toBe(true);
   });
 
   test("second entry is evening-recap", () => {
-    expect(BUILT_IN_JOBS[1].name).toBe("evening-recap");
+    expect(jobs[1]!.name).toBe("evening-recap");
   });
 
   test("evening-recap uses RECAP_PROMPT", () => {
-    expect(BUILT_IN_JOBS[1].message).toBe(RECAP_PROMPT);
+    expect(jobs[1]!.message).toBe(RECAP_PROMPT);
   });
 
   test("RECAP_PROMPT is non-empty and mentions recap", () => {
@@ -112,14 +139,14 @@ describe("BUILT_IN_JOBS", () => {
   });
 
   test("evening-recap schedule is cron at 21:00", () => {
-    const spec = BUILT_IN_JOBS[1];
+    const spec = jobs[1]!;
     expect(spec.schedule.kind).toBe("cron");
     expect(spec.schedule.expr).toBe("0 21 * * *");
     expect(spec.schedule.tz).toBeTruthy();
   });
 
   test("evening-recap has deliver=true", () => {
-    expect(BUILT_IN_JOBS[1].deliver).toBe(true);
+    expect(jobs[1]!.deliver).toBe(true);
   });
 });
 
@@ -129,31 +156,31 @@ describe("BUILT_IN_JOBS", () => {
 
 describe("CronService seeding", () => {
   test("seeds morning-briefing on first start", () => {
-    const svc = new CronService(storePath);
-    svc.start({ defaults: BUILT_IN_JOBS });
-    const jobs = svc.listJobs(true);
-    const briefing = jobs.find((j) => j.name === "morning-briefing");
+    const svc = new CronService(makeDb());
+    svc.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
+    const briefing = svc.listJobs(true).find((j) => j.name === "morning-briefing");
     expect(briefing).toBeDefined();
     expect(briefing!.enabled).toBe(true);
     svc.stop();
   });
 
   test("seeding is idempotent — stop/start does not duplicate", () => {
-    const svc1 = new CronService(storePath);
-    svc1.start({ defaults: BUILT_IN_JOBS });
+    const db = makeDb();
+    const svc1 = new CronService(db);
+    svc1.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     svc1.stop();
 
-    const svc2 = new CronService(storePath);
-    svc2.start({ defaults: BUILT_IN_JOBS });
+    const svc2 = new CronService(db);
+    svc2.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     const jobs = svc2.listJobs(true).filter((j) => j.name === "morning-briefing");
     expect(jobs).toHaveLength(1);
     svc2.stop();
   });
 
   test("pre-existing user-customised morning-briefing is preserved", () => {
-    const svc1 = new CronService(storePath);
+    const db = makeDb();
+    const svc1 = new CronService(db);
     svc1.start({ defaults: [] });
-    // User sets a custom time: 09:30
     svc1.addJob({
       name: "morning-briefing",
       schedule: { kind: "cron", expr: "30 9 * * *", tz: "Asia/Tokyo" },
@@ -161,18 +188,17 @@ describe("CronService seeding", () => {
     });
     svc1.stop();
 
-    // Second start with BUILT_IN_JOBS — must not overwrite the custom entry
-    const svc2 = new CronService(storePath);
-    svc2.start({ defaults: BUILT_IN_JOBS });
+    const svc2 = new CronService(db);
+    svc2.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     const briefings = svc2.listJobs(true).filter((j) => j.name === "morning-briefing");
     expect(briefings).toHaveLength(1);
-    expect(briefings[0].schedule.expr).toBe("30 9 * * *");
-    expect(briefings[0].schedule.tz).toBe("Asia/Tokyo");
+    expect(briefings[0]!.schedule.expr).toBe("30 9 * * *");
+    expect(briefings[0]!.schedule.tz).toBe("Asia/Tokyo");
     svc2.stop();
   });
 
   test("start with empty defaults seeds nothing", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     expect(svc.listJobs(true)).toHaveLength(0);
     svc.stop();
@@ -185,7 +211,7 @@ describe("CronService seeding", () => {
       message: "test message",
       deliver: true,
     };
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [custom] });
     const job = svc.listJobs(true).find((j) => j.name === "test-job");
     expect(job).toBeDefined();
@@ -194,42 +220,42 @@ describe("CronService seeding", () => {
   });
 
   test("seeds evening-recap on first start", () => {
-    const svc = new CronService(storePath);
-    svc.start({ defaults: BUILT_IN_JOBS });
-    const jobs = svc.listJobs(true);
-    const recap = jobs.find((j) => j.name === "evening-recap");
+    const svc = new CronService(makeDb());
+    svc.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
+    const recap = svc.listJobs(true).find((j) => j.name === "evening-recap");
     expect(recap).toBeDefined();
     expect(recap!.enabled).toBe(true);
     expect(recap!.schedule.expr).toBe("0 21 * * *");
     svc.stop();
   });
 
-  test("seeding evening-recap is idempotent — stop/start does not duplicate", () => {
-    const svc1 = new CronService(storePath);
-    svc1.start({ defaults: BUILT_IN_JOBS });
+  test("seeding evening-recap is idempotent", () => {
+    const db = makeDb();
+    const svc1 = new CronService(db);
+    svc1.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     svc1.stop();
 
-    const svc2 = new CronService(storePath);
-    svc2.start({ defaults: BUILT_IN_JOBS });
+    const svc2 = new CronService(db);
+    svc2.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     const jobs = svc2.listJobs(true).filter((j) => j.name === "evening-recap");
     expect(jobs).toHaveLength(1);
     svc2.stop();
   });
 
   test("disabled morning-briefing is not re-enabled on restart", () => {
-    const svc1 = new CronService(storePath);
-    svc1.start({ defaults: BUILT_IN_JOBS });
+    const db = makeDb();
+    const svc1 = new CronService(db);
+    svc1.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     const job = svc1.listJobs(true).find((j) => j.name === "morning-briefing");
     expect(job).toBeDefined();
     svc1.enableJob(job!.id, false);
     svc1.stop();
 
-    // Restart — seedDefaultJobs finds the name, skips it
-    const svc2 = new CronService(storePath);
-    svc2.start({ defaults: BUILT_IN_JOBS });
+    const svc2 = new CronService(db);
+    svc2.start({ defaults: buildBuiltInJobs(detectUserTimezone()) });
     const briefings = svc2.listJobs(true).filter((j) => j.name === "morning-briefing");
     expect(briefings).toHaveLength(1);
-    expect(briefings[0].enabled).toBe(false);
+    expect(briefings[0]!.enabled).toBe(false);
     svc2.stop();
   });
 });

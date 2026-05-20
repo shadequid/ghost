@@ -6,7 +6,7 @@
 import type { ITradingClient, ITradingSubscription, AllDexsAssetCtxsEvent } from "../interfaces/trading-client.js";
 import type {
   Balance, Position, OpenOrder, Fill, Ticker, Kline, Orderbook, OrderRecord,
-  PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult,
+  PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult, TokenInfo,
 } from "../interfaces/trading-types.js";
 import { PaperEngine } from "./engine.js";
 import type { PaperConfig } from "../../config/schema.js";
@@ -56,6 +56,7 @@ export class PaperTradingClient implements ITradingClient {
   getMaxLeverage(symbol: string): number | undefined { return this.marketClient.getMaxLeverage(symbol); }
   getAllAssetNames(): string[] { return this.marketClient.getAllAssetNames(); }
   isKnownSymbol(symbol: string): boolean { return this.marketClient.isKnownSymbol(symbol); }
+  getAllAssets(): ReadonlyArray<TokenInfo> { return this.marketClient.getAllAssets(); }
   getDexUniverses(): ReadonlyMap<string, ReadonlyArray<string>> { return this.marketClient.getDexUniverses(); }
 
   // WS subscriptions — paper mode emits no real WS events; stubs satisfy the interface.

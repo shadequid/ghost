@@ -1,3 +1,5 @@
+import type { WizardCardData } from './wizard-card-types';
+
 export interface ConfirmationData {
   approvalId: string;
   action: string;
@@ -28,6 +30,14 @@ export interface ConfirmationData {
   riskAssessment?: string;
   warnings?: string[];
   direction?: 'long' | 'short';
+  /** Structured data view shipped alongside the confirm preview. Frontend
+   *  renders the WizardCard (read-only) above the ActionCard when present.
+   */
+  wizard?: WizardCardData;
+  /** Hint that user free-text should be treated as a custom value override
+   *  rather than "discuss more" — typically the LLM's proposed default
+   *  (e.g. suggested size). */
+  suggestedValue?: string;
 }
 
 /**

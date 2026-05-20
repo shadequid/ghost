@@ -1,5 +1,6 @@
-import { describe, test, expect, mock } from "bun:test";
+import { describe, test, expect, it, mock } from "bun:test";
 import { DaemonConfirmService } from "../../src/services/trading-confirm.js";
+import type { ConfirmBody, ConfirmExtras } from "../../src/services/trading-confirm.js";
 import { ApprovalManager } from "../../src/gateway/approval.js";
 import type { EventBus } from "../../src/bus/events.js";
 import type { Orchestrator } from "../../src/agent/orchestrator.js";
@@ -62,6 +63,43 @@ describe("DaemonConfirmService.confirm — empty bullets stay empty", () => {
     expect(preview.summary).toBeUndefined();
     expect(preview.lines).toEqual([]);
     expect(preview.steps).toBeUndefined();
+    approvalManager.resolve(approvalId, "rejected");
+    await p;
+  });
+});
+
+describe("ConfirmExtras", () => {
+  it("accepts wizard + suggestedValue", () => {
+    const extras: ConfirmExtras = {
+      wizard: { kind: "generic", groups: [{ rows: [{ label: "x", value: "y" }] }] },
+      suggestedValue: "1000",
+    };
+    expect(extras.wizard?.kind).toBe("generic");
+  });
+
+  it("ConfirmBody legacy shape still typechecks", () => {
+    const body: ConfirmBody = { lines: ["one"], steps: ["step1"] };
+    expect(body.lines?.length).toBe(1);
+  });
+
+  it("confirm propagates extras into ApprovalPreview", async () => {
+    const origin = { channel: "web", chatId: "1" };
+    const approvalManager = new ApprovalManager();
+    const publishMock = mock(() => {});
+    const eventBus = { publish: publishMock, subscribe: mock(() => () => {}) } as unknown as EventBus;
+    const orchestrator = {
+      getCurrentTurnText: () => "test",
+      getCurrentTurnOrigin: () => origin,
+    } as unknown as Orchestrator;
+    const svc = new DaemonConfirmService(approvalManager, eventBus, orchestrator);
+    const p = svc.confirm("Set size", { lines: ["BTC 1x"] }, {
+      wizard: { kind: "generic", groups: [{ rows: [{ label: "Size", value: "1000" }] }] },
+      suggestedValue: "1000",
+    });
+    const firstCall = publishMock.mock.calls[0] as unknown as [{ payload: { preview: { wizard?: { kind: string }; suggestedValue?: string }; approvalId: string } }];
+    const { preview, approvalId } = firstCall[0].payload;
+    expect(preview.wizard?.kind).toBe("generic");
+    expect(preview.suggestedValue).toBe("1000");
     approvalManager.resolve(approvalId, "rejected");
     await p;
   });

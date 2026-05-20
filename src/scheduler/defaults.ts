@@ -43,27 +43,27 @@ export function detectUserTimezone(): string {
   }
 }
 
-/** Default jobs seeded on every daemon start if the name is not already present. */
-export const BUILT_IN_JOBS: ReadonlyArray<DefaultJobSpec> = [
-  {
-    name: "morning-briefing",
-    schedule: {
-      kind: "cron",
-      expr: "0 8 * * *",
-      tz: detectUserTimezone(),
+/**
+ * Build the list of default cron jobs for the given timezone.
+ *
+ * Called once per daemon start — the TZ snapshot is intentional here because
+ * seeding is one-shot. Subsequent timezone changes are applied via
+ * CronService.updateBuiltinJobsTimezone(tz) rather than by restarting.
+ */
+export function buildBuiltInJobs(tz: string): ReadonlyArray<DefaultJobSpec> {
+  return [
+    {
+      name: "morning-briefing",
+      schedule: { kind: "cron", expr: "0 8 * * *", tz },
+      message: BRIEFING_PROMPT,
+      deliver: true,
     },
-    message: BRIEFING_PROMPT,
-    deliver: true,
-  },
-  {
-    name: "evening-recap",
-    // Fixed at 21:00 user-TZ — not configurable (YAGNI; customise via `ghost cron edit` if needed).
-    schedule: {
-      kind: "cron",
-      expr: "0 21 * * *",
-      tz: detectUserTimezone(),
+    {
+      name: "evening-recap",
+      schedule: { kind: "cron", expr: "0 21 * * *", tz },
+      message: RECAP_PROMPT,
+      deliver: true,
     },
-    message: RECAP_PROMPT,
-    deliver: true,
-  },
-] as const;
+  ];
+}
+

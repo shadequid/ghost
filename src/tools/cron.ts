@@ -5,6 +5,7 @@ import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { CronService } from "../scheduler/service.js";
 import type { CronSchedule } from "../scheduler/types.js";
 import type { OriginAware, CronAware } from "./context-aware.js";
+import type { TimezoneService } from "../services/timezone.js";
 
 const CronSchema = Type.Object({
   action: Type.Union([
@@ -30,7 +31,7 @@ export class CronTool implements AgentTool<typeof CronSchema>, OriginAware, Cron
   private _chatId: string | null = null;
   private _inCron = false;
 
-  constructor(private readonly service: CronService, private readonly defaultTz = "UTC") {}
+  constructor(private readonly service: CronService, private readonly tzService: TimezoneService) {}
 
   setOrigin(channel: string, chatId: string): void {
     // Map empty strings to null so downstream null-checks work correctly.
@@ -75,7 +76,8 @@ export class CronTool implements AgentTool<typeof CronSchema>, OriginAware, Cron
     if (params.every_seconds) {
       schedule = { kind: "every", everyMs: params.every_seconds * 1000 };
     } else if (params.cron_expr) {
-      schedule = { kind: "cron", expr: params.cron_expr, tz: params.tz ?? this.defaultTz };
+      // Live-read TZ so changes from the web UI take effect without daemon restart.
+      schedule = { kind: "cron", expr: params.cron_expr, tz: params.tz ?? this.tzService.get() };
     } else if (params.at) {
       const atMs = new Date(params.at).getTime();
       if (isNaN(atMs)) return this.error(`Invalid datetime: ${params.at}`);

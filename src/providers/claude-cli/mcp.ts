@@ -66,7 +66,7 @@ export function createGhostSdkMcpServer(deps: SdkMcpDeps): McpSdkServerConfigWit
             const reasonMsg = decision.reason && decision.reason.length > 0
               ? `User declined. Reason: ${decision.reason}`
               : "User declined. Do not retry.";
-            logger.debug({ tool: agentTool.name, reason: decision.reason }, "tool rejected by user");
+            logger.debug({ tool: agentTool.name, reason: decision.reason }, "tool not approved");
             return { content: [{ type: "text" as const, text: reasonMsg }], isError: true };
           }
         }

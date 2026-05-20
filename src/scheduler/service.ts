@@ -1,15 +1,35 @@
-/** CronService — JSON file-backed scheduler with async timer. */
+/**
+ * CronService — SQLite-backed scheduler with async timer.
+ *
+ * Storage: `cron_jobs` table (see migration registry). All mutations are
+ * wrapped in db.transaction() for atomicity. bun:sqlite is serialized so
+ * no extra locking is needed beyond the transaction boundary.
+ *
+ * The run-history for each job is kept as a JSON column on the job row
+ * (capped at MAX_HISTORY entries). Keeping it in-row avoids joins while
+ * history queries remain uncommon.
+ */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
-import { dirname } from "node:path";
 import { CronExpressionParser } from "cron-parser";
+import type { Database } from "bun:sqlite";
 import type { CronJob, CronSchedule, CronRunRecord } from "./types.js";
-import { BUILT_IN_JOBS, type DefaultJobSpec } from "./defaults.js";
+import type { DefaultJobSpec } from "./defaults.js";
+import {
+  type Row,
+  type Stmts,
+  scheduleFromRow,
+  rowToJob,
+  scheduleBindings,
+} from "./storage.js";
 
 const MAX_HISTORY = 20;
 const MIN_INTERVAL_MS = 10_000;
 
-function computeNextRun(schedule: CronSchedule, nowMs: number): number | null {
+// ---------------------------------------------------------------------------
+// computeNextRun — pure function, same semantics as the old service
+// ---------------------------------------------------------------------------
+
+export function computeNextRun(schedule: CronSchedule, nowMs: number): number | null {
   switch (schedule.kind) {
     case "at":
       return schedule.atMs && schedule.atMs > nowMs ? schedule.atMs : null;
@@ -34,14 +54,62 @@ function computeNextRun(schedule: CronSchedule, nowMs: number): number | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// CronService
+// ---------------------------------------------------------------------------
+
 export class CronService {
-  private store: { version: number; jobs: CronJob[] } = { version: 1, jobs: [] };
-  private lastMtime = 0;
+  private readonly stmts: Stmts;
   private timerHandle: ReturnType<typeof setTimeout> | null = null;
   private _running = false;
   private onJob?: (job: CronJob) => Promise<string | null>;
 
-  constructor(private readonly storePath: string) {}
+  // Names that identify the two built-in default jobs.
+  private static readonly DEFAULT_JOB_NAMES = ["morning-briefing", "evening-recap"];
+
+  constructor(private readonly db: Database) {
+    this.stmts = {
+      selectAll: db.prepare("SELECT * FROM cron_jobs"),
+      selectById: db.prepare("SELECT * FROM cron_jobs WHERE id = ?"),
+      selectByName: db.prepare("SELECT * FROM cron_jobs WHERE name = ?"),
+      insert: db.prepare(`
+        INSERT INTO cron_jobs (
+          id, name, enabled,
+          schedule_kind, schedule_at_ms, schedule_every_ms, schedule_expr, schedule_tz,
+          payload_kind, payload_message, payload_deliver, payload_channel, payload_to,
+          next_run_at_ms, last_run_at_ms, last_status, last_error,
+          run_history, created_at_ms, updated_at_ms, delete_after_run
+        ) VALUES (
+          $id, $name, $enabled,
+          $schedule_kind, $schedule_at_ms, $schedule_every_ms, $schedule_expr, $schedule_tz,
+          $payload_kind, $payload_message, $payload_deliver, $payload_channel, $payload_to,
+          $next_run_at_ms, NULL, NULL, NULL,
+          '[]', $created_at_ms, $updated_at_ms, $delete_after_run
+        )
+      `),
+      updateFull: db.prepare(`
+        UPDATE cron_jobs SET
+          last_run_at_ms = $last_run_at_ms,
+          last_status    = $last_status,
+          last_error     = $last_error,
+          next_run_at_ms = $next_run_at_ms,
+          run_history    = $run_history,
+          enabled        = $enabled,
+          updated_at_ms  = $updated_at_ms
+        WHERE id = $id
+      `),
+      updateNext: db.prepare(
+        "UPDATE cron_jobs SET next_run_at_ms = ?, updated_at_ms = ? WHERE id = ?",
+      ),
+      updateTzAndNext: db.prepare(
+        "UPDATE cron_jobs SET schedule_tz = ?, next_run_at_ms = ?, updated_at_ms = ? WHERE name = ?",
+      ),
+      updateEnabled: db.prepare(
+        "UPDATE cron_jobs SET enabled = ?, next_run_at_ms = ?, updated_at_ms = ? WHERE id = ?",
+      ),
+      delete: db.prepare("DELETE FROM cron_jobs WHERE id = ?"),
+    };
+  }
 
   /** Set job execution callback (called post-construction when agent is ready). */
   setOnJob(fn: (job: CronJob) => Promise<string | null>): void {
@@ -53,31 +121,33 @@ export class CronService {
    *
    * `defaults` — list of built-in job specs to seed on first start.
    * Pass `[]` in tests to opt out of seeding (keeps tests hermetic).
-   * Omit entirely in production to use `BUILT_IN_JOBS` (the default).
    */
   start(opts: { defaults?: ReadonlyArray<DefaultJobSpec> } = {}): void {
     this._running = true;
-    this.loadStore();
-    this.seedDefaultJobs(opts.defaults ?? BUILT_IN_JOBS);
+    this.seedDefaultJobs(opts.defaults ?? []);
+
+    // Skip-on-miss: advance any overdue nextRunAtMs to the next future
+    // occurrence. Applies to ALL schedule kinds — including "every", which
+    // was previously left untouched and caused an immediate fire on restart.
     const now = Date.now();
-    for (const job of this.store.jobs) {
-      if (!job.enabled) continue;
-      // Skip-on-miss: any cron/at job whose nextRunAtMs already elapsed while the
-      // daemon was offline must NOT replay on startup. Advance the timestamp to
-      // the next future occurrence (cron) or drop it (at). 'every' intervals are
-      // left untouched — their cadence is now+everyMs by construction.
-      if (
-        job.state.nextRunAtMs !== null &&
-        job.state.nextRunAtMs <= now &&
-        (job.schedule.kind === "cron" || job.schedule.kind === "at")
-      ) {
-        job.state.nextRunAtMs = computeNextRun(job.schedule, now);
-      } else if (!job.state.nextRunAtMs) {
-        job.state.nextRunAtMs = computeNextRun(job.schedule, now);
+    const rows = this.stmts.selectAll.all() as Row[];
+    this.db.transaction(() => {
+      for (const row of rows) {
+        if (row.enabled === 1 && row.next_run_at_ms !== null && row.next_run_at_ms <= now) {
+          // Only advance enabled jobs — mutating updated_at_ms on a disabled row
+          // contradicts the user's intent and would pollute audit timestamps.
+          const schedule = scheduleFromRow(row);
+          const next = computeNextRun(schedule, now);
+          this.stmts.updateNext.run(next, now, row.id);
+        } else if (row.next_run_at_ms === null && row.enabled) {
+          const schedule = scheduleFromRow(row);
+          const next = computeNextRun(schedule, now);
+          this.stmts.updateNext.run(next, now, row.id);
+        }
       }
-    }
-    this.saveStore();
-    this.armTimer();
+    })();
+
+    this.scheduleNextTick();
   }
 
   stop(): void {
@@ -89,11 +159,13 @@ export class CronService {
   }
 
   listJobs(includeDisabled = false): CronJob[] {
-    this.loadStore();
+    const rows = this.stmts.selectAll.all() as Row[];
     const jobs = includeDisabled
-      ? this.store.jobs
-      : this.store.jobs.filter(j => j.enabled);
-    return jobs.sort((a, b) => (a.state.nextRunAtMs ?? Infinity) - (b.state.nextRunAtMs ?? Infinity));
+      ? rows.map(rowToJob)
+      : rows.filter((r) => r.enabled === 1).map(rowToJob);
+    return jobs.sort(
+      (a, b) => (a.state.nextRunAtMs ?? Infinity) - (b.state.nextRunAtMs ?? Infinity),
+    );
   }
 
   addJob(opts: {
@@ -105,84 +177,105 @@ export class CronService {
     to?: string;
     deleteAfterRun?: boolean;
   }): CronJob {
-    this.loadStore();
     const now = Date.now();
-    const job: CronJob = {
-      id: crypto.randomUUID().slice(0, 8),
-      name: opts.name,
-      enabled: true,
-      schedule: opts.schedule,
-      payload: {
-        kind: "agent_turn",
-        message: opts.message,
-        deliver: opts.deliver ?? true,
-        channel: opts.channel,
-        to: opts.to,
-      },
-      state: {
-        nextRunAtMs: computeNextRun(opts.schedule, now),
-        lastRunAtMs: null,
-        lastStatus: null,
-        lastError: null,
-        runHistory: [],
-      },
-      createdAtMs: now,
-      updatedAtMs: now,
-      deleteAfterRun: opts.deleteAfterRun ?? false,
-    };
-    this.store.jobs.push(job);
-    this.saveStore();
-    this.armTimer();
-    return job;
+    // 12 hex chars = 48 bits of entropy; collision-safe for normal cron volumes
+    const id = crypto.randomUUID().slice(0, 12);
+    const sb = scheduleBindings(opts.schedule);
+    try {
+      this.stmts.insert.run({
+        $id: id,
+        $name: opts.name,
+        $enabled: 1,
+        ...Object.fromEntries(Object.entries(sb).map(([k, v]) => [`$${k}`, v])),
+        $payload_kind: "agent_turn",
+        $payload_message: opts.message,
+        $payload_deliver: (opts.deliver ?? true) ? 1 : 0,
+        $payload_channel: opts.channel ?? null,
+        $payload_to: opts.to ?? null,
+        $next_run_at_ms: computeNextRun(opts.schedule, now),
+        $created_at_ms: now,
+        $updated_at_ms: now,
+        $delete_after_run: (opts.deleteAfterRun ?? false) ? 1 : 0,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("UNIQUE constraint failed") || msg.includes("SQLITE_CONSTRAINT")) {
+        throw new Error(`Cron name already exists: ${opts.name}`);
+      }
+      throw err;
+    }
+    this.scheduleNextTick();
+    const row = this.stmts.selectById.get(id) as Row;
+    return rowToJob(row);
   }
 
   removeJob(jobId: string): boolean {
-    this.loadStore();
-    const idx = this.store.jobs.findIndex(j => j.id === jobId);
-    if (idx === -1) return false;
-    this.store.jobs.splice(idx, 1);
-    this.saveStore();
-    this.armTimer();
+    const row = this.stmts.selectById.get(jobId) as Row | undefined;
+    if (!row) return false;
+    this.stmts.delete.run(jobId);
+    this.scheduleNextTick();
     return true;
   }
 
   enableJob(jobId: string, enabled: boolean): void {
-    this.loadStore();
-    const job = this.store.jobs.find(j => j.id === jobId);
-    if (!job) return;
-    job.enabled = enabled;
-    if (enabled) {
-      job.state.nextRunAtMs = computeNextRun(job.schedule, Date.now());
-    } else {
-      job.state.nextRunAtMs = null;
-    }
-    job.updatedAtMs = Date.now();
-    this.saveStore();
-    this.armTimer();
+    const now = Date.now();
+    const row = this.stmts.selectById.get(jobId) as Row | undefined;
+    if (!row) return;
+    const nextRun = enabled
+      ? computeNextRun(scheduleFromRow(row), now)
+      : null;
+    this.stmts.updateEnabled.run(enabled ? 1 : 0, nextRun, now, jobId);
+    this.scheduleNextTick();
   }
 
   async runJob(jobId: string, force = false): Promise<void> {
-    this.loadStore();
-    const job = this.store.jobs.find(j => j.id === jobId);
-    if (!job) return;
+    const row = this.stmts.selectById.get(jobId) as Row | undefined;
+    if (!row) return;
+    const job = rowToJob(row);
     if (!job.enabled && !force) return;
     await this.executeJob(job);
-    this.saveStore();
-    this.armTimer();
   }
 
   getJob(jobId: string): CronJob | undefined {
-    this.loadStore();
-    return this.store.jobs.find(j => j.id === jobId);
+    const row = this.stmts.selectById.get(jobId) as Row | undefined;
+    return row ? rowToJob(row) : undefined;
   }
 
-  status(): { enabled: boolean; jobs: number; nextWakeAtMs: number | null } {
-    this.loadStore();
+  status(): { enabled: boolean; jobs: number; nextTickAtMs: number | null } {
+    const rows = this.stmts.selectAll.all() as Row[];
+    const enabled = rows.filter((r) => r.enabled === 1);
     return {
       enabled: this._running,
-      jobs: this.store.jobs.filter(j => j.enabled).length,
-      nextWakeAtMs: this.getNextWakeMs(),
+      jobs: enabled.length,
+      nextTickAtMs: this.getNextTickMs(),
     };
+  }
+
+  /**
+   * Apply a new timezone to built-in default jobs and recompute nextRun.
+   * Only touches jobs whose names match DEFAULT_JOB_NAMES and whose schedule
+   * kind is "cron". User-created jobs are left untouched.
+   * Returns the list of names that were updated.
+   */
+  updateBuiltinJobsTimezone(tz: string): string[] {
+    const updated: string[] = [];
+    const now = Date.now();
+
+    this.db.transaction(() => {
+      for (const name of CronService.DEFAULT_JOB_NAMES) {
+        const row = this.stmts.selectByName.get(name) as Row | undefined;
+        if (!row || row.schedule_kind !== "cron") continue;
+        const nextRun = computeNextRun(
+          { kind: "cron", expr: row.schedule_expr ?? undefined, tz },
+          now,
+        );
+        this.stmts.updateTzAndNext.run(tz, nextRun, now, name);
+        updated.push(name);
+      }
+    })();
+
+    this.scheduleNextTick();
+    return updated;
   }
 
   // ---------------------------------------------------------------------------
@@ -190,42 +283,35 @@ export class CronService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Add each spec whose `name` is not already present in the store.
-   * Idempotent — repeated daemon starts never duplicate built-in jobs.
-   * A job that exists but is disabled (user turned off morning-briefing)
-   * is intentionally left alone — we only skip by name, not by enabled state.
+   * Seed default jobs idempotently via ON CONFLICT(name) DO NOTHING.
+   * A job that exists but is disabled is intentionally left alone.
    */
   private seedDefaultJobs(specs: ReadonlyArray<DefaultJobSpec>): void {
-    const existingNames = new Set(this.store.jobs.map((j) => j.name));
-    let dirty = false;
     const now = Date.now();
-    for (const spec of specs) {
-      if (existingNames.has(spec.name)) continue;
-      const job: CronJob = {
-        id: crypto.randomUUID().slice(0, 8),
-        name: spec.name,
-        enabled: true,
-        schedule: spec.schedule,
-        payload: {
-          kind: "agent_turn",
-          message: spec.message,
-          deliver: spec.deliver,
-        },
-        state: {
-          nextRunAtMs: computeNextRun(spec.schedule, now),
-          lastRunAtMs: null,
-          lastStatus: null,
-          lastError: null,
-          runHistory: [],
-        },
-        createdAtMs: now,
-        updatedAtMs: now,
-        deleteAfterRun: false,
-      };
-      this.store.jobs.push(job);
-      dirty = true;
-    }
-    if (dirty) this.saveStore();
+    this.db.transaction(() => {
+      for (const spec of specs) {
+        const existing = this.stmts.selectByName.get(spec.name) as Row | undefined;
+        if (existing) continue;
+        // 12 hex chars = 48 bits of entropy; collision-safe for normal cron volumes
+        const id = crypto.randomUUID().slice(0, 12);
+        const sb = scheduleBindings(spec.schedule);
+        this.stmts.insert.run({
+          $id: id,
+          $name: spec.name,
+          $enabled: 1,
+          ...Object.fromEntries(Object.entries(sb).map(([k, v]) => [`$${k}`, v])),
+          $payload_kind: "agent_turn",
+          $payload_message: spec.message,
+          $payload_deliver: spec.deliver ? 1 : 0,
+          $payload_channel: null,
+          $payload_to: null,
+          $next_run_at_ms: computeNextRun(spec.schedule, now),
+          $created_at_ms: now,
+          $updated_at_ms: now,
+          $delete_after_run: 0,
+        });
+      }
+    })();
   }
 
   private async executeJob(job: CronJob): Promise<void> {
@@ -245,94 +331,97 @@ export class CronService {
     const durationMs = Date.now() - startMs;
     const record: CronRunRecord = { runAtMs: startMs, status, durationMs, error };
 
-    job.state.lastRunAtMs = startMs;
-    job.state.lastStatus = status;
-    job.state.lastError = error ?? null;
-    job.state.runHistory.push(record);
-    if (job.state.runHistory.length > MAX_HISTORY) {
-      job.state.runHistory = job.state.runHistory.slice(-MAX_HISTORY);
+    // Re-read the row after the await to pick up any schedule/TZ changes that
+    // arrived while the job was executing (e.g. updateBuiltinJobsTimezone called from web UI).
+    const currentRow = this.stmts.selectById.get(job.id) as Row | undefined;
+    let runHistory: CronRunRecord[] = [];
+    if (currentRow) {
+      try {
+        runHistory = JSON.parse(currentRow.run_history) as CronRunRecord[];
+      } catch { /* start fresh */ }
+    }
+    runHistory.push(record);
+    if (runHistory.length > MAX_HISTORY) {
+      runHistory = runHistory.slice(-MAX_HISTORY);
     }
 
-    // Handle one-shot jobs
+    // Determine next run and enabled state for one-shot jobs.
+    // Use the fresh schedule from the re-read row so that a concurrent
+    // updateBuiltinJobsTimezone call is not clobbered.
+    let nextRunAtMs: number | null;
+    let enabled = 1;
+
     if (job.schedule.kind === "at") {
       if (job.deleteAfterRun) {
-        const idx = this.store.jobs.indexOf(job);
-        if (idx >= 0) this.store.jobs.splice(idx, 1);
-      } else {
-        job.enabled = false;
-        job.state.nextRunAtMs = null;
+        this.stmts.delete.run(job.id);
+        this.scheduleNextTick();
+        return;
       }
+      enabled = 0;
+      nextRunAtMs = null;
     } else {
-      job.state.nextRunAtMs = computeNextRun(job.schedule, Date.now());
+      // Re-read schedule from DB to capture any timezone retag that happened
+      // during the await window above.
+      const freshSchedule = currentRow ? scheduleFromRow(currentRow) : job.schedule;
+      nextRunAtMs = computeNextRun(freshSchedule, Date.now());
     }
 
-    job.updatedAtMs = Date.now();
+    this.db.transaction(() => {
+      this.stmts.updateFull.run({
+        $last_run_at_ms: startMs,
+        $last_status: status,
+        $last_error: error ?? null,
+        $next_run_at_ms: nextRunAtMs,
+        $run_history: JSON.stringify(runHistory),
+        $enabled: enabled,
+        $updated_at_ms: Date.now(),
+        $id: job.id,
+      });
+    })();
+
+    this.scheduleNextTick();
   }
 
-  private getNextWakeMs(): number | null {
+  private getNextTickMs(): number | null {
+    const rows = this.stmts.selectAll.all() as Row[];
     let earliest: number | null = null;
-    for (const job of this.store.jobs) {
-      if (job.enabled && job.state.nextRunAtMs) {
-        if (earliest === null || job.state.nextRunAtMs < earliest) {
-          earliest = job.state.nextRunAtMs;
+    for (const row of rows) {
+      if (row.enabled === 1 && row.next_run_at_ms !== null) {
+        if (earliest === null || row.next_run_at_ms < earliest) {
+          earliest = row.next_run_at_ms;
         }
       }
     }
     return earliest;
   }
 
-  private armTimer(): void {
+  private scheduleNextTick(): void {
     if (this.timerHandle) {
       clearTimeout(this.timerHandle);
       this.timerHandle = null;
     }
     if (!this._running) return;
 
-    const nextMs = this.getNextWakeMs();
+    const nextMs = this.getNextTickMs();
     if (nextMs === null) return;
 
     const delayMs = Math.max(nextMs - Date.now(), 0);
-    this.timerHandle = setTimeout(() => this.onTimer(), delayMs);
+    this.timerHandle = setTimeout(() => void this.onTimer(), delayMs);
   }
 
   private async onTimer(): Promise<void> {
     if (!this._running) return;
-    this.loadStore();
 
     const now = Date.now();
-    const due = this.store.jobs.filter(
-      j => j.enabled && j.state.nextRunAtMs !== null && j.state.nextRunAtMs <= now,
+    const rows = this.stmts.selectAll.all() as Row[];
+    const due = rows.filter(
+      (r) => r.enabled === 1 && r.next_run_at_ms !== null && r.next_run_at_ms <= now,
     );
 
-    for (const job of due) {
-      await this.executeJob(job);
+    for (const row of due) {
+      await this.executeJob(rowToJob(row));
     }
 
-    this.saveStore();
-    this.armTimer();
-  }
-
-  private loadStore(): void {
-    if (!existsSync(this.storePath)) return;
-    try {
-      const stat = statSync(this.storePath);
-      const mtime = stat.mtimeMs;
-      if (mtime === this.lastMtime && this.store.jobs.length > 0) return;
-
-      const raw = readFileSync(this.storePath, "utf-8");
-      const parsed = JSON.parse(raw) as { version: number; jobs: CronJob[] };
-      this.store = parsed;
-      this.lastMtime = mtime;
-    } catch {
-      // Parse error or missing file — keep current store
-    }
-  }
-
-  private saveStore(): void {
-    mkdirSync(dirname(this.storePath), { recursive: true });
-    writeFileSync(this.storePath, JSON.stringify(this.store, null, 2));
-    try {
-      this.lastMtime = statSync(this.storePath).mtimeMs;
-    } catch { /* ignore */ }
+    this.scheduleNextTick();
   }
 }

@@ -17,6 +17,8 @@ function emptySnapshot(): ObserverSnapshot {
     lastRestSyncAtMs: 0,
     recentCancelOids: [],
     recentEmittedFillIds: [],
+    recentEmittedNewsIds: [],
+    lastNewsScanTs: 0,
   };
 }
 
@@ -112,6 +114,7 @@ describe("diffSnapshot — pnl_snapshot emission", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const snaps = result.events.filter((e) => e.type === "pnl_snapshot");
@@ -128,6 +131,7 @@ describe("diffSnapshot — pnl_snapshot emission", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.length).toBe(0);
@@ -142,6 +146,8 @@ describe("diffSnapshot — pnl_snapshot emission", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [pos({ unrealizedPnl: 100 })],
       openOrders: [],
@@ -150,6 +156,7 @@ describe("diffSnapshot — pnl_snapshot emission", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_120_000,
     });
     const snap = result.events.find((e) => e.type === "pnl_snapshot");
@@ -170,6 +177,7 @@ describe("diffSnapshot — liquidation_risk", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "liquidation_risk")).toBeUndefined();
@@ -186,6 +194,7 @@ describe("diffSnapshot — liquidation_risk", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const r50x = diffSnapshot({
@@ -197,6 +206,7 @@ describe("diffSnapshot — liquidation_risk", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(r10x.events.some((e) => e.type === "liquidation_risk")).toBe(true);
@@ -212,6 +222,8 @@ describe("diffSnapshot — liquidation_risk", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [pos({ markPrice: 61_000 })], // still in danger zone
       openOrders: [],
@@ -220,6 +232,7 @@ describe("diffSnapshot — liquidation_risk", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "liquidation_risk")).toBeUndefined();
@@ -235,6 +248,7 @@ describe("diffSnapshot — liquidation_risk", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.nextPositions["BTC|long"]?.liqRiskFired).toBe(true);
@@ -251,6 +265,8 @@ describe("diffSnapshot — fill classification", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [], // position gone
       openOrders: [],
@@ -268,6 +284,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "position_liquidated");
@@ -287,6 +304,8 @@ describe("diffSnapshot — fill classification", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [],
       openOrders: [],
@@ -297,6 +316,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.some((e) => e.type === "tp_hit")).toBe(true);
@@ -311,6 +331,8 @@ describe("diffSnapshot — fill classification", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [],
       openOrders: [],
@@ -321,6 +343,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "sl_hit");
@@ -339,6 +362,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.some((e) => e.type === "order_filled")).toBe(true);
@@ -353,6 +377,8 @@ describe("diffSnapshot — fill classification", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [],
       openOrders: [],
@@ -363,6 +389,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "position_closed");
@@ -382,6 +409,8 @@ describe("diffSnapshot — fill classification", () => {
         lastRestSyncAtMs: 0,
         recentCancelOids: [],
         recentEmittedFillIds: [],
+        recentEmittedNewsIds: [],
+        lastNewsScanTs: 0,
       },
       positions: [], // gone
       openOrders: [],
@@ -390,6 +419,7 @@ describe("diffSnapshot — fill classification", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "position_closed");
@@ -418,6 +448,7 @@ describe("diffSnapshot — fill dedup (between REST syncs)", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(t1.events.filter((e) => e.type === "order_filled").length).toBe(1);
@@ -435,6 +466,7 @@ describe("diffSnapshot — fill dedup (between REST syncs)", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_120_000,
     });
     expect(t2.events.find((e) => e.type === "order_filled")).toBeUndefined();
@@ -462,6 +494,7 @@ describe("diffSnapshot — fill dedup (between REST syncs)", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(t1.events.filter((e) => e.type === "position_closed").length).toBe(1);
@@ -476,6 +509,7 @@ describe("diffSnapshot — fill dedup (between REST syncs)", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_120_000,
     });
     expect(t2.events.find((e) => e.type === "position_closed")).toBeUndefined();
@@ -493,6 +527,7 @@ describe("diffSnapshot — fill dedup (between REST syncs)", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.filter((e) => e.type === "order_filled").length).toBe(1);
@@ -523,6 +558,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "order_canceled");
@@ -542,6 +578,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "order_canceled");
@@ -559,6 +596,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "order_canceled");
@@ -580,6 +618,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "order_canceled")).toBeUndefined();
@@ -595,6 +634,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "order_canceled")).toBeUndefined();
@@ -611,6 +651,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(t1.events.filter((e) => e.type === "order_canceled").length).toBe(1);
@@ -628,6 +669,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_120_000,
     });
     expect(t2.events.find((e) => e.type === "order_canceled")).toBeUndefined();
@@ -649,6 +691,7 @@ describe("diffSnapshot — order cancellations", () => {
       alertRules: [],
       prices: new Map(),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.filter((e) => e.type === "order_canceled").length).toBe(1);
@@ -675,6 +718,7 @@ describe("diffSnapshot — price_alert (crossing detection)", () => {
       ],
       prices: new Map([["BTC", 70_500]]),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     const ev = result.events.find((e) => e.type === "price_alert");
@@ -704,6 +748,7 @@ describe("diffSnapshot — price_alert (crossing detection)", () => {
       ],
       prices: new Map([["BTC", 69_000]]),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "price_alert")).toBeUndefined();
@@ -729,6 +774,7 @@ describe("diffSnapshot — price_alert (crossing detection)", () => {
       ],
       prices: new Map([["BTC", 80_000]]),
       liqProgressThreshold: 0.8,
+      articles: [],
       nowMs: 1_700_000_060_000,
     });
     expect(result.events.find((e) => e.type === "price_alert")).toBeUndefined();

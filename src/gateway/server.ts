@@ -17,6 +17,7 @@ import { registerMemoryMethods } from "./memory.js";
 import { registerToolsMethods } from "./tools.js";
 import { registerSessionsMethods } from "./sessions.js";
 import { registerCronMethods } from "./cron.js";
+import { registerConfigMethods } from "./config.js";
 import { registerChatMethods } from "./chat.js";
 import { registerTradingMethods } from "./trading.js";
 import { registerApprovalMethods } from "./approval-handlers.js";
@@ -34,6 +35,7 @@ import type { RssDiscoveryService } from "../services/rss-discovery.js";
 import type { TweetService } from "../services/tweets.js";
 import type { XFollowService } from "../services/x-follows.js";
 import type { PreferenceStore } from "../services/preferences.js";
+import type { TimezoneService } from "../services/timezone.js";
 import type { SkillService } from "../services/skill-service.js";
 import { handleChartData, type ChartDataDeps } from "./chart-data.js";
 import type { WatchlistService } from "../services/watchlist.js";
@@ -78,6 +80,8 @@ export interface GatewayAgentDeps {
   tools: ToolRegistry;
   memoryStore: MemoryStore;
   cronService: CronService;
+  /** Live timezone service — used by config.timezone.{get,set} RPCs. */
+  timezoneService: TimezoneService;
   skillService: SkillService;
 }
 
@@ -167,6 +171,10 @@ export function createGateway(gatewayConfig: Config["gateway"], deps: GatewayDep
   registerToolsMethods(registry.register.bind(registry), { tools: deps.tools });
   registerSessionsMethods(registry.register.bind(registry), { sessionManager: deps.sessionManager });
   registerCronMethods(registry.register.bind(registry), { cronService: deps.cronService });
+  registerConfigMethods(registry.register.bind(registry), {
+    timezoneService: deps.timezoneService,
+    cronService: deps.cronService,
+  });
   const tokensSnapshot = new TokensSnapshotService(deps.tradingClient, deps.priceCache);
   registerTradingMethods(registry.register.bind(registry), { tradingClient: deps.tradingClient, walletStore: deps.walletStore, alertRules: deps.alertRules, notifications: deps.notifications, newsService: deps.newsService, rssDiscovery: deps.rssDiscoveryService, tweetService: deps.tweetService, xFollowService: deps.xFollowService, preferenceStore: deps.preferenceStore, watchlist: deps.watchlistService, logger: deps.logger, tokensSnapshot, priceCache: deps.priceCache });
   registerApprovalMethods(registry.register.bind(registry), { approvalManager: deps.approvalManager });

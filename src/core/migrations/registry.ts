@@ -193,6 +193,43 @@ const addXFollowsEnabledSourceMigration: Migration<Database> = {
   },
 };
 
+const addCronJobsMigration: Migration<Database> = {
+  version: 10,
+  label: "add_cron_jobs",
+  up: (db) => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS cron_jobs (
+        id                TEXT    PRIMARY KEY,
+        name              TEXT    NOT NULL,
+        enabled           INTEGER NOT NULL DEFAULT 1,
+        schedule_kind     TEXT    NOT NULL,
+        schedule_at_ms    INTEGER,
+        schedule_every_ms INTEGER,
+        schedule_expr     TEXT,
+        schedule_tz       TEXT,
+        payload_kind      TEXT    NOT NULL DEFAULT 'agent_turn',
+        payload_message   TEXT    NOT NULL,
+        payload_deliver   INTEGER NOT NULL DEFAULT 1,
+        payload_channel   TEXT,
+        payload_to        TEXT,
+        next_run_at_ms    INTEGER,
+        last_run_at_ms    INTEGER,
+        last_status       TEXT,
+        last_error        TEXT,
+        run_history       TEXT    NOT NULL DEFAULT '[]',
+        created_at_ms     INTEGER NOT NULL,
+        updated_at_ms     INTEGER NOT NULL,
+        delete_after_run  INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cron_jobs_name ON cron_jobs(name);`);
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled_next
+        ON cron_jobs(enabled, next_run_at_ms) WHERE enabled = 1;
+    `);
+  },
+};
+
 export const DB_MIGRATIONS: ReadonlyArray<Migration<Database>> = [
   baselineDbMigration,
   proactiveCooldownsMigration,
@@ -203,6 +240,7 @@ export const DB_MIGRATIONS: ReadonlyArray<Migration<Database>> = [
   addObserverStateMigration,
   splitAlertsMigration,
   addXFollowsEnabledSourceMigration,
+  addCronJobsMigration,
 ];
 
 // ---------------------------------------------------------------------------

@@ -114,4 +114,78 @@ describe("ToolRegistry", () => {
     expect(text.length).toBeLessThanOrEqual(16_100);
     expect(text).toContain("truncated");
   });
+
+  // ---------------------------------------------------------------------------
+  // taskAgentTools allowlist — guards the BUG-0163 regression. The background
+  // Runner must never see exec / write_file / edit_file or write trading
+  // tools, even when those are registered on the same shared registry that
+  // the orchestrator uses.
+  // ---------------------------------------------------------------------------
+
+  describe("taskAgentTools allowlist (BUG-0163)", () => {
+    test("excludes write/exec generic tools that are registered", () => {
+      registry.register(makeTool("read_file"));
+      registry.register(makeTool("list_dir"));
+      registry.register(makeTool("web_fetch"));
+      registry.register(makeTool("web_search"));
+      registry.register(makeTool("save_memory"));
+      registry.register(makeTool("cron"));
+      registry.register(makeTool("write_file"));
+      registry.register(makeTool("edit_file"));
+      registry.register(makeTool("exec"));
+
+      const names = registry.taskAgentTools().map((t) => t.name).sort();
+
+      expect(names).toEqual([
+        "cron",
+        "list_dir",
+        "read_file",
+        "save_memory",
+        "web_fetch",
+        "web_search",
+      ]);
+      expect(names).not.toContain("exec");
+      expect(names).not.toContain("write_file");
+      expect(names).not.toContain("edit_file");
+    });
+
+    test("excludes write trading tools, includes read trading tools", () => {
+      // Reads
+      registry.register(makeTool("ghost_get_positions"));
+      registry.register(makeTool("ghost_get_balance"));
+      registry.register(makeTool("ghost_get_price"));
+      registry.register(makeTool("ghost_market_overview"));
+      // Writes — must be filtered out
+      registry.register(makeTool("ghost_place_order"));
+      registry.register(makeTool("ghost_cancel_order"));
+      registry.register(makeTool("ghost_set_sl_tp"));
+      registry.register(makeTool("ghost_emergency_close"));
+      registry.register(makeTool("ghost_watchlist_add"));
+      registry.register(makeTool("ghost_alert_set"));
+
+      const names = new Set(registry.taskAgentTools().map((t) => t.name));
+
+      expect(names.has("ghost_get_positions")).toBe(true);
+      expect(names.has("ghost_get_balance")).toBe(true);
+      expect(names.has("ghost_get_price")).toBe(true);
+      expect(names.has("ghost_market_overview")).toBe(true);
+
+      expect(names.has("ghost_place_order")).toBe(false);
+      expect(names.has("ghost_cancel_order")).toBe(false);
+      expect(names.has("ghost_set_sl_tp")).toBe(false);
+      expect(names.has("ghost_emergency_close")).toBe(false);
+      expect(names.has("ghost_watchlist_add")).toBe(false);
+      expect(names.has("ghost_alert_set")).toBe(false);
+    });
+
+    test("filter is name-based — unknown tools default to excluded", () => {
+      registry.register(makeTool("totally_new_write_tool"));
+      registry.register(makeTool("read_file"));
+
+      const names = registry.taskAgentTools().map((t) => t.name);
+
+      expect(names).toContain("read_file");
+      expect(names).not.toContain("totally_new_write_tool");
+    });
+  });
 });

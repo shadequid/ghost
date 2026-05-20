@@ -2,12 +2,12 @@
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
-/* SVN-Rethink Sans — self-hosted via vite asset pipeline. The 4 .otf
-   files in src/assets/fonts/rethink-sans/ are the SVN foundry repack
-   (covers Latin + Vietnamese diacritics). Family is registered as both
-   "Rethink Sans" and "SVN-Rethink Sans" so existing call-sites + Figma
-   spec names both resolve. Weights shipped: 400 Regular, 500 Medium,
-   700 Bold (also alias 600 → Bold for semibold tokens), 400 Italic. */
+/* Rethink Sans — self-hosted via vite asset pipeline. The 4 .otf files
+   in src/assets/fonts/rethink-sans/ cover extended Latin diacritics.
+   Family is registered as both "Rethink Sans" and "SVN-Rethink Sans" so
+   existing call-sites + Figma spec names both resolve. Weights shipped:
+   400 Regular, 500 Medium, 700 Bold (also alias 600 → Bold for semibold
+   tokens), 400 Italic. */
 @font-face {
   font-family: "Rethink Sans";
   font-style: normal;

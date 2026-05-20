@@ -12,11 +12,19 @@ import type { Agent } from "@mariozechner/pi-agent-core";
 import type { ToolRegistry } from "../../src/tools/registry.js";
 
 /** Minimal ToolRegistry stub: empty tool list, sufficient for Runner tests. */
-const STUB_REGISTRY = { all: () => [] } as unknown as ToolRegistry;
+const STUB_REGISTRY = {
+  all: () => [],
+  taskAgentTools: () => [],
+} as unknown as ToolRegistry;
 
-/** Build a ToolRegistry stub whose all() returns the provided sentinel. */
+/** Build a ToolRegistry stub whose taskAgentTools() returns the provided sentinel.
+ * Runner.call snapshots tools via taskAgentTools(); these tests only need the
+ * sentinel identity. */
 function registryWithTools(tools: unknown[]): ToolRegistry {
-  return { all: () => tools } as unknown as ToolRegistry;
+  return {
+    all: () => tools,
+    taskAgentTools: () => tools,
+  } as unknown as ToolRegistry;
 }
 
 // ---------------------------------------------------------------------------
@@ -300,9 +308,11 @@ describe("Runner — persist flag", () => {
 // ---------------------------------------------------------------------------
 
 describe("Runner — tool snapshot refresh", () => {
-  test("agent.state.tools is set to registry.all() on each call", async () => {
+  test("agent.state.tools is set to registry.taskAgentTools() on each call", async () => {
     // Use unknown[] sentinels — we only care about reference identity, not the
     // actual AgentTool shape. The type cast lets us avoid stubbing 4+ fields.
+    // Runner snapshots via taskAgentTools() (not all()) so background loops
+    // never see write/exec tools that would trigger a confirm card.
     const sentinelA = [{ name: "tool-a" }] as unknown[];
     const sentinelB = [{ name: "tool-b" }] as unknown[];
 
@@ -322,7 +332,10 @@ describe("Runner — tool snapshot refresh", () => {
 
     // First call uses sentinelA
     let currentSentinel = sentinelA;
-    const registry = { all: () => currentSentinel } as unknown as ToolRegistry;
+    const registry = {
+      all: () => currentSentinel,
+      taskAgentTools: () => currentSentinel,
+    } as unknown as ToolRegistry;
     const runner = new Runner(agent, sm as never, registry, NOOP_LOGGER);
 
     await runner.call({ systemPrompt: "SP", message: "first" });

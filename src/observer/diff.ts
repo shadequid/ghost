@@ -16,6 +16,7 @@ import type {
   Position,
 } from "../services/interfaces/trading-types.js";
 import type { AlertRule } from "../services/alert-rules.js";
+import type { NewsArticle } from "../services/news-types.js";
 import type { ObserverEvent } from "./events.js";
 import type { ObserverSnapshot, PositionSnapshot } from "./state-store.js";
 
@@ -24,6 +25,7 @@ import { detectFills } from "./detect/fills.js";
 import { detectClosedFallback } from "./detect/closed-fallback.js";
 import { detectCanceledOrders } from "./detect/canceled-orders.js";
 import { detectPriceTargetCrossings } from "./detect/price-target.js";
+import { detectNews } from "./detect/news.js";
 
 export { liquidationProgress };
 
@@ -39,6 +41,8 @@ export interface DiffInput {
   prices: ReadonlyMap<string, number>;
   /** Liquidation progress threshold (e.g. 0.8). */
   liqProgressThreshold: number;
+  /** Pre-filtered articles from `NewsService.listRecentRelevant()`. */
+  articles: ReadonlyArray<NewsArticle>;
   nowMs: number;
 }
 
@@ -52,6 +56,8 @@ export interface DiffResult {
   emittedCancelOids: string[];
   /** Fill `tradeId`s processed this tick — caller merges into the snapshot dedup window. */
   emittedFillIds: string[];
+  /** Article ids emitted this tick — same dedup-window contract as `emittedFillIds`. */
+  emittedNewsIds: string[];
 }
 
 export function diffSnapshot(input: DiffInput): DiffResult {
@@ -95,6 +101,13 @@ export function diffSnapshot(input: DiffInput): DiffResult {
     nowMs: input.nowMs,
   });
 
+  // 6. Ready news articles → news (cross-reference happens in the judge skill).
+  const newsR = detectNews({
+    articles: input.articles,
+    priorEmittedIds: new Set(input.prior.recentEmittedNewsIds),
+    nowMs: input.nowMs,
+  });
+
   return {
     events: [
       ...positionsR.events,
@@ -102,10 +115,12 @@ export function diffSnapshot(input: DiffInput): DiffResult {
       ...fallbackEvents,
       ...cancelR.events,
       ...priceTargetR.events,
+      ...newsR.events,
     ],
     nextPositions: positionsR.nextPositions,
     firedAlertIds: priceTargetR.firedIds,
     emittedCancelOids: cancelR.emittedOids,
     emittedFillIds: fillsR.emittedFillIds,
+    emittedNewsIds: newsR.emittedIds,
   };
 }
