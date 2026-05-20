@@ -16,15 +16,16 @@
  */
 
 import type { PriceCache } from "./price-cache.js";
+import type { TokenInfo } from "./interfaces/trading-types.js";
 
 /** Minimal trading client surface needed by TokensSnapshotService. */
 export interface TokensSnapshotClientDeps {
-  getAllAssetNames(): string[];
+  getAllAssets(): ReadonlyArray<TokenInfo>;
   getMaxLeverage(symbol: string): number | undefined;
 }
 
 export interface TokensSnapshot {
-  tokens: string[];
+  tokens: TokenInfo[];
   prices: Record<string, number>;
   prevDayPrices: Record<string, number>;
   maxLeverages: Record<string, number>;
@@ -38,12 +39,13 @@ export class TokensSnapshotService {
 
   /** Build a snapshot from in-memory caches. Zero network calls. */
   build(): TokensSnapshot {
-    const tokens = this.client.getAllAssetNames();
+    const assets = this.client.getAllAssets();
     const prices: Record<string, number> = {};
     const prevDayPrices: Record<string, number> = {};
     const maxLeverages: Record<string, number> = {};
+    const tokens: TokenInfo[] = [];
 
-    for (const symbol of tokens) {
+    for (const { symbol, isDelisted } of assets) {
       const entry = this.priceCache.get(symbol, 30_000);
       if (entry) {
         prices[symbol] = entry.price;
@@ -51,9 +53,10 @@ export class TokensSnapshotService {
       }
       const lev = this.client.getMaxLeverage(symbol);
       if (typeof lev === "number" && lev > 0) maxLeverages[symbol] = lev;
+      tokens.push(isDelisted ? { symbol, isDelisted: true } : { symbol });
     }
 
-    tokens.sort();
+    tokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
     return { tokens, prices, prevDayPrices, maxLeverages };
   }
 }

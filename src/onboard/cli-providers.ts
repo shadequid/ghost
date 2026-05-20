@@ -2,17 +2,17 @@ import { getProviderList, getModelList } from "./providers.js";
 import { loadCustomModelRegistry } from "../providers/models-config.js";
 import { getModelsConfigPath } from "../config/paths.js";
 
-/** A provider does NOT require an API key if it uses OAuth or CLI-based auth. */
-function requiresApiKey(provider: { id: string; supportsOAuth: boolean }): boolean {
-  if (provider.id === "claude-cli") return false;
-  if (provider.supportsOAuth) return false;
-  return true;
+/** A provider does NOT require an API key if it uses OAuth. */
+function requiresApiKey(provider: { supportsOAuth: boolean }): boolean {
+  return !provider.supportsOAuth;
 }
 
 interface ProviderRow {
   id: string;
   label: string;
   description: string;
+  tier: number;
+  tierLabel: string;
   requiresApiKey: boolean;
   supportsOAuth: boolean;
   apiKeyUrl: string | null;
@@ -25,6 +25,8 @@ export function listProviders(): void {
     id: p.id,
     label: p.label,
     description: p.description,
+    tier: p.tier,
+    tierLabel: p.tierLabel,
     requiresApiKey: requiresApiKey(p),
     supportsOAuth: p.supportsOAuth,
     apiKeyUrl: p.apiKeyUrl ?? null,
@@ -38,6 +40,8 @@ export function listProviders(): void {
     id: name,
     label: name,
     description: "Custom provider (from ~/.ghost/models.json)",
+    tier: 4,
+    tierLabel: "🔧 Custom",
     requiresApiKey: true,
     supportsOAuth: false,
     apiKeyUrl: null,

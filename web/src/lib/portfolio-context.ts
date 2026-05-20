@@ -47,7 +47,8 @@ export interface OpenOrder {
 }
 
 /** Mirrors the server `NotificationKind` discriminator. The bell-dropdown
- *  filters to `price_target` only — other kinds land in chat history. */
+ *  filters to `price_target` only — other kinds (news, tp_hit,
+ *  liquidation_risk, ...) land in chat history but don't badge the bell. */
 export type NotificationKind =
   | 'price_target'
   | 'liquidation_risk'
@@ -56,6 +57,7 @@ export type NotificationKind =
   | 'sl_hit'
   | 'order_filled'
   | 'order_canceled'
+  | 'news'
   | 'proactive';
 
 export interface Notification {

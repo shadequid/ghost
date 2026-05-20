@@ -1,6 +1,14 @@
 import type { ConfirmationData, ConfirmationStatus } from './confirmation-types';
+import type { WizardCardData } from './wizard-card-types';
+import type { ActionCardData, ActionCardStatus } from './action-card-types';
+import type { AskBlock } from './parseAskBlock';
 
-export type ChatMessageType = 'text' | 'confirmation' | 'error';
+export type ChatMessageType =
+  | 'text'
+  | 'confirmation' // legacy — kept so old session JSONL replays render
+  | 'wizard' // WizardCard data view (read-only)
+  | 'action' // ActionCard (single or multi-step)
+  | 'error';
 
 export interface ToolCallEntry {
   toolCallId: string;
@@ -19,8 +27,21 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   type?: ChatMessageType;
+  // Legacy confirm shape — populated only when type === 'confirmation'.
   data?: ConfirmationData;
   status?: ConfirmationStatus;
+  // type === 'wizard'
+  wizardData?: WizardCardData;
+  // type === 'action'
+  actionData?: ActionCardData;
+  actionStatus?: ActionCardStatus;
+  // Parsed <AskUserQuestion> block(s) extracted from assistant text.
+  // Rendered as AskCard(s) docked at the ChatInput slot; the source
+  // markup is stripped from `content` before render.
+  askBlocks?: AskBlock[];
+  // True once an AskCard from this message has been submitted (locks
+  // every askBlock card on this message to prevent re-submission).
+  askSubmitted?: boolean;
   toolCalls?: ToolCallEntry[];
   streaming?: boolean;
 }

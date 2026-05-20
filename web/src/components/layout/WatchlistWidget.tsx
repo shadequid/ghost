@@ -98,8 +98,13 @@ function changeColor(v: number | null): string {
   return v >= 0 ? 'var(--color-success-default)' : 'var(--color-error-text)';
 }
 
+interface TokenInfo {
+  symbol: string;
+  isDelisted?: true;
+}
+
 interface TokenData {
-  tokens: string[];
+  tokens: TokenInfo[];
   prices: Record<string, number>;
   prevDayPrices: Record<string, number>;
 }
@@ -192,9 +197,10 @@ export function WatchlistWidget() {
   const hasPrices = Object.keys(prices).length > 0;
 
   const filteredTokens = useMemo(() => {
+    const live = allTokens.filter((t) => !t.isDelisted).map((t) => t.symbol);
     const list = searchQuery
-      ? allTokens.filter((sym) => sym.toUpperCase().includes(searchQuery.toUpperCase()))
-      : allTokens;
+      ? live.filter((sym) => sym.toUpperCase().includes(searchQuery.toUpperCase()))
+      : live;
     const fav = list.filter((sym) => watchlistSet.has(sym));
     const rest = list.filter((sym) => !watchlistSet.has(sym));
     return [...fav, ...rest];

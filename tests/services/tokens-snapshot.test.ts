@@ -2,26 +2,30 @@
  * Unit tests for TokensSnapshotService.
  *
  * Verifies that build() assembles the snapshot purely from in-memory state
- * (getAllAssetNames, PriceCache, getMaxLeverage) with zero network calls.
+ * (getAllAssets, PriceCache, getMaxLeverage) with zero network calls.
  */
 
 import { describe, test, expect } from "bun:test";
 import { TokensSnapshotService } from "../../src/services/tokens-snapshot.js";
 import { PriceCache } from "../../src/services/price-cache.js";
 
-function makeClient(assets: string[], leverages: Record<string, number | undefined>) {
+function makeClient(
+  assets: string[],
+  leverages: Record<string, number | undefined>,
+  delisted: Set<string> = new Set(),
+) {
   return {
-    getAllAssetNames: () => assets,
+    getAllAssets: () => assets.map((symbol) => (delisted.has(symbol) ? { symbol, isDelisted: true as const } : { symbol })),
     getMaxLeverage: (s: string) => leverages[s],
   };
 }
 
 describe("TokensSnapshotService", () => {
-  test("build returns sorted tokens from getAllAssetNames", () => {
+  test("build returns sorted tokens from getAllAssets", () => {
     const cache = new PriceCache();
     const svc = new TokensSnapshotService(makeClient(["ETH", "BTC", "xyz:AAPL"], {}), cache);
     const snap = svc.build();
-    expect(snap.tokens).toEqual(["BTC", "ETH", "xyz:AAPL"]);
+    expect(snap.tokens.map((t) => t.symbol)).toEqual(["BTC", "ETH", "xyz:AAPL"]);
   });
 
   test("prices come from PriceCache within staleness window", () => {
@@ -81,11 +85,26 @@ describe("TokensSnapshotService", () => {
     const cache = new PriceCache(); // empty
     const svc = new TokensSnapshotService(makeClient(["BTC", "ETH"], { BTC: 40 }), cache);
     const snap = svc.build();
-    expect(snap.tokens).toEqual(["BTC", "ETH"]);
+    expect(snap.tokens.map((t) => t.symbol)).toEqual(["BTC", "ETH"]);
     expect("BTC" in snap.prices).toBe(false);
     expect("ETH" in snap.prices).toBe(false);
     // maxLeverage still returned even without price
     expect(snap.maxLeverages["BTC"]).toBe(40);
+  });
+
+  test("delisted symbols carry isDelisted: true; others omit the field", () => {
+    const cache = new PriceCache();
+    cache.set("BTC", 60_000);
+    cache.set("JUP", 0.5);
+    const svc = new TokensSnapshotService(
+      makeClient(["BTC", "JUP"], { BTC: 40, JUP: 10 }, new Set(["JUP"])),
+      cache,
+    );
+    const snap = svc.build();
+    expect(snap.tokens).toEqual([{ symbol: "BTC" }, { symbol: "JUP", isDelisted: true }]);
+    // Live symbols still get full price + leverage data.
+    expect(snap.prices["JUP"]).toBe(0.5);
+    expect(snap.maxLeverages["JUP"]).toBe(10);
   });
 
   test("empty asset list returns all-empty snapshot", () => {

@@ -81,7 +81,7 @@ export function usePortfolioProvider(): PortfolioContextValue {
 
       if (notifRes.status === 'fulfilled' && Array.isArray(notifRes.value)) {
         // Bell-dropdown only surfaces price-target notifications per
-        // product decision — other kinds (tp_hit, liquidation_risk, ...)
+        // product decision — other kinds (tp_hit, liquidation_risk, news, ...)
         // are still persisted and shown in chat via judge dispatch,
         // but don't crowd the bell badge.
         const priceOnly = notifRes.value.filter((n) => n.kind === 'price_target');

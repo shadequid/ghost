@@ -1,28 +1,34 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { CronService } from "../../src/scheduler/service.js";
 import { CronTool } from "../../src/tools/cron.js";
+import type { TimezoneService } from "../../src/services/timezone.js";
+import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
 
-let tmpDir: string;
-let storePath: string;
+function makeDb(): Database {
+  const db = new Database(":memory:");
+  // CronService only needs cron_jobs — run that migration directly.
+  const m = DB_MIGRATIONS.find((x) => x.version === 10)!;
+  (m.up as (db: Database) => void)(db);
+  return db;
+}
+
+function makeStaticTzService(tz = "UTC"): TimezoneService {
+  return { get: () => tz, set: () => ({ ok: true as const, tz }) };
+}
+
 let service: CronService;
 let tool: CronTool;
 
 beforeEach(() => {
-  tmpDir = join(tmpdir(), `ghost-cron-tool-${Date.now()}`);
-  mkdirSync(tmpDir, { recursive: true });
-  storePath = join(tmpDir, "cron", "jobs.json");
-  service = new CronService(storePath);
+  service = new CronService(makeDb());
   service.setOnJob(async () => null);
   service.start({ defaults: [] });
-  tool = new CronTool(service, "UTC");
+  tool = new CronTool(service, makeStaticTzService("UTC"));
 });
 
 afterEach(() => {
   service.stop();
-  rmSync(tmpDir, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------

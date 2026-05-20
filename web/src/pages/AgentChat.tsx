@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { ActionCard } from '@/components/chat/ActionCard';
+import { AskCard } from '@/components/chat/AskCard';
 import { SuggestionChips, EmptyState } from '@/components/chat/SuggestionChips';
 import { ErrorBanner } from '@/components/chat/ErrorBanner';
 import { MessageBubble } from '@/components/chat/MessageBubble';
@@ -27,7 +29,31 @@ export default function AgentChat() {
   }, []);
   const idlePlaceholder = 'How can I help you today?';
 
-  const pendingConfirm = chat.messages.find((m) => m.type === 'confirmation' && m.status === 'pending');
+  const pendingConfirm = chat.messages.find(
+    (m) =>
+      (m.type === 'confirmation' && m.status === 'pending') ||
+      (m.type === 'action' && (m.actionStatus ?? 'pending') === 'pending'),
+  );
+  // Detach the pending action card from the message stream and dock it in
+  // the ChatInput slot — keeps the interactive card at the user's gaze line
+  // instead of pinned to the assistant bubble that triggered it.
+  const pendingActionMessage =
+    pendingConfirm?.type === 'action' && pendingConfirm.actionData
+      ? pendingConfirm
+      : null;
+  // Same docking treatment for an in-flight <ask> wizard. Picks the most
+  // recent assistant message whose AskCard hasn't been answered yet.
+  // Pending action (post-tool approval) takes priority over a pending ask
+  // when both exist.
+  const pendingAskMessage = pendingActionMessage
+    ? null
+    : [...chat.messages].reverse().find(
+        (m) =>
+          m.role === 'assistant'
+          && !!m.askBlocks
+          && m.askBlocks.length > 0
+          && !m.askSubmitted,
+      ) ?? null;
 
   const handleToolCallSelect = useCallback((entry: ToolCallEntry) => {
     setPanelEntry(entry);
@@ -46,7 +72,11 @@ export default function AgentChat() {
       {/* Messages — when empty, the welcome state sits centered in the
           available space (Figma 215:1296). When there are messages, the
           stream anchors at the top and scrolls naturally. */}
-      <div ref={chat.scrollContainerRef} className="flex-1 overflow-y-auto px-4 flex flex-col relative">
+      <div
+        ref={chat.scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 flex flex-col relative"
+        style={{ scrollbarGutter: 'stable' }}
+      >
         <div
           className={
             'max-w-[800px] w-full mx-auto flex flex-col gap-3' +
@@ -74,7 +104,11 @@ export default function AgentChat() {
             />
           ))}
 
-          {chat.chatRunId && !chat.messages.some((m) => m.type === 'confirmation' && m.status === 'pending') && (
+          {chat.chatRunId && !chat.messages.some(
+            (m) =>
+              (m.type === 'confirmation' && m.status === 'pending') ||
+              (m.type === 'action' && (m.actionStatus ?? 'pending') === 'pending'),
+          ) && (
             <>
               <ThinkingIndicator phase={chat.thinkingPhase ?? 'thinking'} detail={chat.thinkingDetail ?? undefined} />
               {chat.activeToolCalls.length > 0 && (
@@ -135,7 +169,28 @@ export default function AgentChat() {
        * isn't `pending`), ChatInput is brought back. This supersedes the
        * earlier bugfix policy of keeping the input always mounted.
        */}
-      {!pendingConfirm && (
+      {pendingActionMessage && pendingActionMessage.actionData ? (
+        <div className="flex justify-center px-4 pt-2 pb-4 bg-[var(--color-surface-scrim)]">
+          <div className="w-full max-w-[800px]">
+            <ActionCard
+              data={pendingActionMessage.actionData}
+              status={pendingActionMessage.actionStatus ?? 'pending'}
+              onApprove={chat.handleApprove}
+              onReject={chat.handleReject}
+            />
+          </div>
+        </div>
+      ) : pendingAskMessage && pendingAskMessage.askBlocks && pendingAskMessage.askBlocks[0] ? (
+        <div className="flex justify-center px-4 pt-2 pb-4 bg-[var(--color-surface-scrim)]">
+          <div className="w-full max-w-[800px]">
+            <AskCard
+              block={pendingAskMessage.askBlocks[0]}
+              onSubmit={(reply) => chat.handleSubmitAsk(pendingAskMessage.id, reply)}
+              onDismiss={() => chat.handleDismissAsk(pendingAskMessage.id)}
+            />
+          </div>
+        </div>
+      ) : !pendingConfirm ? (
         <ChatInput
           onSend={chat.handleSend}
           disabled={!chat.connected}
@@ -149,7 +204,7 @@ export default function AgentChat() {
           isBusy={chat.isBusy}
           onAbort={chat.handleAbort}
         />
-      )}
+      ) : null}
 
       <ToolCallPanel entry={panelEntry} onClose={handlePanelClose} />
     </section>

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Popover } from '@/components/Popover';
 import { UpdateAvailableModal } from '@/components/UpdateAvailableModal';
+import { TimezoneSetting } from '@/components/layout/TimezoneSetting';
 import { useGateway } from '@/hooks/useGateway';
+import { useTimezone } from '@/hooks/useTimezone';
 import {
   loadWidgetState,
   setWidgetHidden,
@@ -67,9 +69,11 @@ const NETWORK_EXPOSURE_DOCS_URL =
 export function SystemMenuDropdown() {
   const [open, setOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [tzEditorOpen, setTzEditorOpen] = useState(false);
   const [tweetsVisible, setTweetsVisible] = useState(readTweetsVisible);
   const containerRef = useRef<HTMLDivElement>(null);
   const { current: currentVersion, updateAvailable } = useVersionStatus();
+  const { tz: currentTz, set: setTz } = useTimezone();
 
   useEffect(() => subscribeWidgetVisibility(() => setTweetsVisible(readTweetsVisible())), []);
 
@@ -102,6 +106,7 @@ export function SystemMenuDropdown() {
         origin="top-right"
         onEscape={() => setOpen(false)}
         initialFocus="first"
+        trapArrowKeys={!tzEditorOpen}
         className={
           'absolute right-0 top-[calc(100%+8px)] z-50 min-w-[260px] ' +
           'bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] ' +
@@ -111,7 +116,7 @@ export function SystemMenuDropdown() {
         role="menu"
         aria-label="System menu"
       >
-        <div className="flex flex-col gap-4 pb-4 border-b border-[var(--color-border-subtle)] w-full">
+        <div className="flex flex-col gap-4 pb-1 w-full">
           <MenuItem
             icon={<XLogoIcon />}
             label="Show X"
@@ -126,6 +131,28 @@ export function SystemMenuDropdown() {
               window.open(NETWORK_EXPOSURE_DOCS_URL, '_blank', 'noopener,noreferrer');
             }}
           />
+        </div>
+        {/* Timezone row — above the version/update row */}
+        <div className="flex flex-col gap-2 pb-3 border-b border-[var(--color-border-subtle)] w-full">
+          <MenuItem
+            icon={<GlobeIcon />}
+            label="Timezone"
+            onClick={() => setTzEditorOpen((v) => !v)}
+            trailing={
+              currentTz ? (
+                <span className="text-footnote text-[var(--color-text-tertiary)] max-w-[120px] truncate">
+                  {currentTz}
+                </span>
+              ) : undefined
+            }
+          />
+          {tzEditorOpen && (
+            <TimezoneSetting
+              current={currentTz}
+              set={setTz}
+              onClose={() => setTzEditorOpen(false)}
+            />
+          )}
         </div>
         <VersionRow
           label={currentVersion ? `Version ${currentVersion}` : 'Version'}
@@ -265,6 +292,17 @@ function MouseCircleIcon() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M10.9133 15.18C10.9066 15.18 10.9066 15.18 10.9 15.18C10.2266 15.1733 9.66664 14.76 9.46664 14.1134L8.23331 10.1467C8.06664 9.60001 8.20664 9.01334 8.61331 8.62C9.01331 8.22667 9.59331 8.08 10.1266 8.24667L14.1 9.48001C14.74 9.68001 15.16 10.24 15.1666 10.9133C15.1733 11.58 14.7666 12.1467 14.1266 12.36L13.04 12.7267C12.8866 12.78 12.7666 12.8933 12.72 13.0467L12.3466 14.14C12.14 14.7733 11.58 15.18 10.9133 15.18ZM9.67331 9.18C9.49331 9.18 9.37331 9.28 9.31998 9.32667C9.17998 9.46667 9.13331 9.66001 9.19331 9.85334L10.4266 13.82C10.5333 14.16 10.8266 14.1733 10.92 14.18C11.0133 14.18 11.3 14.1533 11.4066 13.8267L11.78 12.7333C11.9266 12.2867 12.2866 11.9334 12.7333 11.78L13.82 11.4133C14.1533 11.3067 14.1733 11.0134 14.1733 10.9267C14.1733 10.84 14.1466 10.5467 13.8133 10.44L9.83998 9.20667C9.77331 9.18667 9.71998 9.18 9.67331 9.18Z" fill="currentColor" />
       <path d="M8.00016 15.1667C4.04683 15.1667 0.833496 11.9533 0.833496 8C0.833496 4.04667 4.04683 0.833336 8.00016 0.833336C11.9535 0.833336 15.1668 4.04667 15.1668 8C15.1668 8.27334 14.9402 8.5 14.6668 8.5C14.3935 8.5 14.1668 8.27334 14.1668 8C14.1668 4.6 11.4002 1.83334 8.00016 1.83334C4.60016 1.83334 1.8335 4.6 1.8335 8C1.8335 11.4 4.60016 14.1667 8.00016 14.1667C8.2735 14.1667 8.50016 14.3933 8.50016 14.6667C8.50016 14.94 8.2735 15.1667 8.00016 15.1667Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8S4.41 14.5 8 14.5 14.5 11.59 14.5 8 11.59 1.5 8 1.5zm0 1c.56 0 1.23.49 1.79 1.5H6.21C6.77 3 7.44 2.5 8 2.5zm-2.07.37C5.48 3.6 5.1 4.3 4.82 5H3.22A6.52 6.52 0 0 1 5.93 2.87zm4.14 0A6.52 6.52 0 0 1 12.78 5h-1.6c-.28-.7-.66-1.4-1.11-2.13zM2.73 6h1.82c-.09.64-.13 1.31-.13 2H2.5c.04-.7.1-1.38.23-2zm2.84 0h4.86c.1.64.15 1.31.15 2H5.42c0-.69.05-1.36.15-2zm5.88 0h1.82c.13.62.19 1.3.23 2h-1.92c0-.69-.04-1.36-.13-2zM2.5 9h1.92c.04.69.14 1.36.28 2H2.91C2.68 10.38 2.54 9.7 2.5 9zm2.92 0h5.16c-.1.69-.2 1.36-.38 2H5.8C5.62 10.36 5.52 9.69 5.42 9zm6.16 0h1.92c-.04.7-.18 1.38-.41 2h-1.79c.14-.64.24-1.31.28-2zM3.22 12h1.6c.28.7.66 1.4 1.11 2.13A6.52 6.52 0 0 1 3.22 12zm2.99 0h3.58C9.23 13 8.56 13.5 8 13.5c-.56 0-1.23-.5-1.79-1.5zm4.57 0h1.6a6.52 6.52 0 0 1-2.71 2.13C10.12 13.4 10.5 12.7 10.78 12z"
+        fill="currentColor"
+      />
     </svg>
   );
 }

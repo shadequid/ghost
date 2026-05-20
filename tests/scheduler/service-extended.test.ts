@@ -1,27 +1,23 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, test, expect } from "bun:test";
+import { Database } from "bun:sqlite";
 import { CronService } from "../../src/scheduler/service.js";
+import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
 
-let tmpDir: string;
-let storePath: string;
-
-beforeEach(() => {
-  tmpDir = join(tmpdir(), `ghost-cron-ext-${Date.now()}`);
-  mkdirSync(tmpDir, { recursive: true });
-  storePath = join(tmpDir, "cron", "jobs.json");
-});
-afterEach(() => rmSync(tmpDir, { recursive: true, force: true }));
+function makeDb(): Database {
+  const db = new Database(":memory:");
+  // CronService only needs cron_jobs — run that migration directly.
+  const m = DB_MIGRATIONS.find((x) => x.version === 10)!;
+  (m.up as (db: Database) => void)(db);
+  return db;
+}
 
 // ---------------------------------------------------------------------------
-// Cron expression parsing (TC-W41-09)
+// Cron expression parsing
 // ---------------------------------------------------------------------------
 
 describe("CronService — cron expression parsing", () => {
   test("valid cron expression computes future nextRunAtMs", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const job = svc.addJob({
       name: "daily",
@@ -34,7 +30,7 @@ describe("CronService — cron expression parsing", () => {
   });
 
   test("invalid cron expression results in null nextRunAtMs", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const job = svc.addJob({
       name: "bad-cron",
@@ -46,7 +42,7 @@ describe("CronService — cron expression parsing", () => {
   });
 
   test("cron expression with timezone", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const job = svc.addJob({
       name: "tz-cron",
@@ -60,12 +56,12 @@ describe("CronService — cron expression parsing", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Minimum interval enforcement (TC-W41-10)
+// Minimum interval enforcement
 // ---------------------------------------------------------------------------
 
 describe("CronService — minimum interval enforcement", () => {
   test("every interval below 10s is clamped to 10s", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const now = Date.now();
     const job = svc.addJob({
@@ -73,14 +69,13 @@ describe("CronService — minimum interval enforcement", () => {
       schedule: { kind: "every", everyMs: 1000 },
       message: "too fast",
     });
-    // MIN_INTERVAL_MS is 10_000, so nextRun should be at least ~10s from now
     expect(job.state.nextRunAtMs).not.toBeNull();
-    expect(job.state.nextRunAtMs! - now).toBeGreaterThanOrEqual(9_900); // small tolerance
+    expect(job.state.nextRunAtMs! - now).toBeGreaterThanOrEqual(9_900);
     svc.stop();
   });
 
   test("every interval at or above 10s is respected", () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const now = Date.now();
     const job = svc.addJob({
@@ -89,7 +84,6 @@ describe("CronService — minimum interval enforcement", () => {
       message: "normal speed",
     });
     expect(job.state.nextRunAtMs).not.toBeNull();
-    // Should be ~30s from now, not clamped
     const diff = job.state.nextRunAtMs! - now;
     expect(diff).toBeGreaterThanOrEqual(29_000);
     expect(diff).toBeLessThanOrEqual(31_000);
@@ -103,7 +97,7 @@ describe("CronService — minimum interval enforcement", () => {
 
 describe("CronService — error handling", () => {
   test("runJob records error on callback failure", async () => {
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.setOnJob(async () => {
       throw new Error("callback failed");
     });
@@ -118,13 +112,13 @@ describe("CronService — error handling", () => {
     expect(updated.state.lastStatus).toBe("error");
     expect(updated.state.lastError).toBe("callback failed");
     expect(updated.state.runHistory).toHaveLength(1);
-    expect(updated.state.runHistory[0].status).toBe("error");
+    expect(updated.state.runHistory[0]!.status).toBe("error");
     svc.stop();
   });
 
   test("runJob does nothing for disabled job without force", async () => {
     let called = false;
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.setOnJob(async () => { called = true; return null; });
     svc.start({ defaults: [] });
     const job = svc.addJob({
@@ -140,7 +134,7 @@ describe("CronService — error handling", () => {
 
   test("runJob with force=true runs disabled job", async () => {
     let called = false;
-    const svc = new CronService(storePath);
+    const svc = new CronService(makeDb());
     svc.setOnJob(async () => { called = true; return null; });
     svc.start({ defaults: [] });
     const job = svc.addJob({
@@ -156,104 +150,58 @@ describe("CronService — error handling", () => {
 });
 
 // ---------------------------------------------------------------------------
-// JSON persistence details
-// ---------------------------------------------------------------------------
-
-describe("CronService — JSON persistence details", () => {
-  test("store file contains version and jobs array", () => {
-    const svc = new CronService(storePath);
-    svc.start({ defaults: [] });
-    svc.addJob({ name: "persist-test", schedule: { kind: "every", everyMs: 60_000 }, message: "test" });
-    svc.stop();
-
-    const raw = readFileSync(storePath, "utf-8");
-    const parsed = JSON.parse(raw);
-    expect(parsed.version).toBe(1);
-    expect(Array.isArray(parsed.jobs)).toBe(true);
-    expect(parsed.jobs).toHaveLength(1);
-    expect(parsed.jobs[0].name).toBe("persist-test");
-  });
-
-  test("external file modification detected on next loadStore", () => {
-    const svc1 = new CronService(storePath);
-    svc1.start({ defaults: [] });
-    svc1.addJob({ name: "original", schedule: { kind: "every", everyMs: 60_000 }, message: "orig" });
-    svc1.stop();
-
-    // Simulate external modification by creating second service
-    const svc2 = new CronService(storePath);
-    svc2.start({ defaults: [] });
-    svc2.addJob({ name: "external-add", schedule: { kind: "every", everyMs: 60_000 }, message: "ext" });
-    svc2.stop();
-
-    // Reload original store path from a new instance — should see both jobs
-    const svc3 = new CronService(storePath);
-    svc3.start({ defaults: [] });
-    expect(svc3.listJobs()).toHaveLength(2);
-    svc3.stop();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Status method
 // ---------------------------------------------------------------------------
 
 describe("CronService — status", () => {
-  test("status returns nextWakeAtMs based on earliest job", () => {
-    const svc = new CronService(storePath);
+  test("status returns nextTickAtMs based on earliest job", () => {
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     svc.addJob({ name: "far", schedule: { kind: "every", everyMs: 600_000 }, message: "far" });
     svc.addJob({ name: "near", schedule: { kind: "every", everyMs: 10_000 }, message: "near" });
     const st = svc.status();
-    // nextWakeAtMs should match the nearest job
-    expect(st.nextWakeAtMs).not.toBeNull();
-    // near job has 10s interval, far has 600s — nextWake should be close to 10s from now
-    const diff = st.nextWakeAtMs! - Date.now();
+    expect(st.nextTickAtMs).not.toBeNull();
+    const diff = st.nextTickAtMs! - Date.now();
     expect(diff).toBeLessThanOrEqual(11_000);
     svc.stop();
   });
 
-  test("status with no enabled jobs returns nextWakeAtMs=null", () => {
-    const svc = new CronService(storePath);
+  test("status with no enabled jobs returns nextTickAtMs=null", () => {
+    const svc = new CronService(makeDb());
     svc.start({ defaults: [] });
     const st = svc.status();
-    expect(st.nextWakeAtMs).toBeNull();
+    expect(st.nextTickAtMs).toBeNull();
     svc.stop();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Skip-on-miss (BUG-0150) — missed cron/at windows do NOT fire on startup
+// Skip-on-miss — missed cron/at windows do NOT fire on startup
 // ---------------------------------------------------------------------------
-
-function seedStore(path: string, jobs: unknown[]): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify({ version: 1, jobs }, null, 2));
-}
 
 describe("CronService — skip-on-miss", () => {
   test("cron job with past nextRunAtMs is advanced to future without firing", async () => {
+    const db = makeDb();
     const now = Date.now();
     const pastMs = now - 60 * 60 * 1000;
-    seedStore(storePath, [{
-      id: "test1",
+
+    // Pre-insert a cron job with a past nextRunAtMs
+    const svc0 = new CronService(db);
+    svc0.start({ defaults: [] });
+    const job = svc0.addJob({
       name: "morning-recap",
-      enabled: true,
       schedule: { kind: "cron", expr: "0 8 * * *" },
-      payload: { kind: "agent_turn", message: "recap", deliver: true },
-      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
-      createdAtMs: now - 1_000_000,
-      updatedAtMs: now - 1_000_000,
-      deleteAfterRun: false,
-    }]);
+      message: "recap",
+    });
+    // Backdate nextRunAtMs
+    db.run("UPDATE cron_jobs SET next_run_at_ms = ? WHERE id = ?", [pastMs, job.id]);
+    svc0.stop();
 
     let fired = 0;
-    const svc = new CronService(storePath);
+    const svc = new CronService(db);
     svc.setOnJob(async () => { fired++; return null; });
     svc.start({ defaults: [] });
 
-    // Give the timer a tick to settle. Skip-on-miss runs synchronously inside
-    // start(); fire would happen via the armed setTimeout with delay=0.
     await new Promise((r) => setTimeout(r, 10));
 
     const jobs = svc.listJobs();
@@ -264,108 +212,80 @@ describe("CronService — skip-on-miss", () => {
     svc.stop();
   });
 
-  test("at job with past nextRunAtMs is dropped (nextRunAtMs becomes null) without firing", async () => {
+  test("at job with past nextRunAtMs becomes null without firing", async () => {
+    const db = makeDb();
     const now = Date.now();
     const pastMs = now - 60 * 60 * 1000;
-    seedStore(storePath, [{
-      id: "test2",
+
+    const svc0 = new CronService(db);
+    svc0.start({ defaults: [] });
+    const job = svc0.addJob({
       name: "one-shot",
-      enabled: true,
       schedule: { kind: "at", atMs: pastMs },
-      payload: { kind: "agent_turn", message: "remind", deliver: true },
-      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
-      createdAtMs: now - 1_000_000,
-      updatedAtMs: now - 1_000_000,
-      deleteAfterRun: false,
-    }]);
+      message: "remind",
+    });
+    db.run("UPDATE cron_jobs SET next_run_at_ms = ? WHERE id = ?", [pastMs, job.id]);
+    svc0.stop();
 
     let fired = 0;
-    const svc = new CronService(storePath);
+    const svc = new CronService(db);
     svc.setOnJob(async () => { fired++; return null; });
     svc.start({ defaults: [] });
     await new Promise((r) => setTimeout(r, 10));
 
-    const jobs = svc.listJobs();
+    const jobs = svc.listJobs(true);
     expect(jobs[0]!.state.nextRunAtMs).toBeNull();
     expect(fired).toBe(0);
     svc.stop();
   });
 
   test("cron job with future nextRunAtMs is left untouched", () => {
+    const db = makeDb();
     const now = Date.now();
     const futureMs = now + 60 * 60 * 1000;
-    seedStore(storePath, [{
-      id: "test3",
-      name: "later",
-      enabled: true,
-      schedule: { kind: "cron", expr: "0 8 * * *" },
-      payload: { kind: "agent_turn", message: "later", deliver: true },
-      state: { nextRunAtMs: futureMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
-      createdAtMs: now - 1_000_000,
-      updatedAtMs: now - 1_000_000,
-      deleteAfterRun: false,
-    }]);
 
-    const svc = new CronService(storePath);
+    const svc0 = new CronService(db);
+    svc0.start({ defaults: [] });
+    const job = svc0.addJob({
+      name: "later",
+      schedule: { kind: "cron", expr: "0 8 * * *" },
+      message: "later",
+    });
+    db.run("UPDATE cron_jobs SET next_run_at_ms = ? WHERE id = ?", [futureMs, job.id]);
+    svc0.stop();
+
+    const svc = new CronService(db);
     svc.start({ defaults: [] });
     const jobs = svc.listJobs();
     expect(jobs[0]!.state.nextRunAtMs).toBe(futureMs);
     svc.stop();
   });
 
-  test("both built-in cron jobs (morning-briefing and evening-recap) skip on miss", async () => {
+  test("every-kind job with past nextRunAtMs is advanced (bug fix: no immediate fire)", async () => {
+    const db = makeDb();
     const now = Date.now();
     const pastMs = now - 60 * 60 * 1000;
-    const baseJob = (name: string, expr: string) => ({
-      id: name,
-      name,
-      enabled: true,
-      schedule: { kind: "cron", expr, tz: "UTC" },
-      payload: { kind: "agent_turn", message: `${name} prompt`, deliver: true },
-      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
-      createdAtMs: now - 1_000_000,
-      updatedAtMs: now - 1_000_000,
-      deleteAfterRun: false,
-    });
-    seedStore(storePath, [
-      baseJob("morning-briefing", "0 8 * * *"),
-      baseJob("evening-recap", "0 21 * * *"),
-    ]);
 
-    const firedNames: string[] = [];
-    const svc = new CronService(storePath);
-    svc.setOnJob(async (job) => { firedNames.push(job.name); return null; });
-    svc.start({ defaults: [] });
-    await new Promise((r) => setTimeout(r, 10));
-
-    expect(firedNames).toEqual([]);
-    const jobs = svc.listJobs();
-    expect(jobs.every((j) => j.state.nextRunAtMs! > now)).toBe(true);
-    svc.stop();
-  });
-
-  test("every-kind job with past nextRunAtMs is NOT skipped (legacy behavior)", async () => {
-    const now = Date.now();
-    const pastMs = now - 60 * 60 * 1000;
-    seedStore(storePath, [{
-      id: "test4",
+    const svc0 = new CronService(db);
+    svc0.start({ defaults: [] });
+    const job = svc0.addJob({
       name: "interval",
-      enabled: true,
       schedule: { kind: "every", everyMs: 30_000 },
-      payload: { kind: "agent_turn", message: "interval", deliver: true },
-      state: { nextRunAtMs: pastMs, lastRunAtMs: null, lastStatus: null, lastError: null, runHistory: [] },
-      createdAtMs: now - 1_000_000,
-      updatedAtMs: now - 1_000_000,
-      deleteAfterRun: false,
-    }]);
+      message: "interval",
+    });
+    db.run("UPDATE cron_jobs SET next_run_at_ms = ? WHERE id = ?", [pastMs, job.id]);
+    svc0.stop();
 
     let fired = 0;
-    const svc = new CronService(storePath);
+    const svc = new CronService(db);
     svc.setOnJob(async () => { fired++; return null; });
     svc.start({ defaults: [] });
-    // Wait long enough for the delay=0 timer to fire the missed interval.
     await new Promise((r) => setTimeout(r, 50));
-    expect(fired).toBeGreaterThanOrEqual(1);
+
+    // After the fix, every-kind overdue jobs are advanced to now+everyMs, not fired immediately.
+    expect(fired).toBe(0);
+    const reloaded = svc.getJob(job.id)!;
+    expect(reloaded.state.nextRunAtMs!).toBeGreaterThan(now);
     svc.stop();
   });
 });

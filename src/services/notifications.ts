@@ -31,6 +31,7 @@ export type NotificationKind =
   | "sl_hit"
   | "order_filled"
   | "order_canceled"
+  | "news"                   // news article impacts a held position
   | "proactive";             // generic observer chatter, no specific kind
 
 export interface Notification {
@@ -78,6 +79,7 @@ function isKind(raw: string): raw is NotificationKind {
     raw === "sl_hit" ||
     raw === "order_filled" ||
     raw === "order_canceled" ||
+    raw === "news" ||
     raw === "proactive"
   );
 }

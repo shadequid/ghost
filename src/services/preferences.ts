@@ -11,6 +11,7 @@ import type { Logger } from "pino";
 
 export const TWEET_FILTER_PROMPT_KEY = "tweets.filter_prompt";
 export const NEWS_FILTER_PROMPT_KEY = "news.filter_prompt";
+export const USER_TIMEZONE_KEY = "user.timezone";
 
 interface Stmts {
   get: Statement;
@@ -67,5 +68,15 @@ export class PreferenceStore {
   setNewsFilterPrompt(prompt: string): void {
     if (prompt.length === 0) this.delete(NEWS_FILTER_PROMPT_KEY);
     else this.set(NEWS_FILTER_PROMPT_KEY, prompt);
+  }
+
+  getTimezone(): string | null {
+    return this.get(USER_TIMEZONE_KEY);
+  }
+
+  // Empty string deletes so the runtime falls back to "UTC" on next read.
+  setTimezone(tz: string): void {
+    if (tz.length === 0) this.delete(USER_TIMEZONE_KEY);
+    else this.set(USER_TIMEZONE_KEY, tz);
   }
 }

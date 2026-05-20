@@ -206,6 +206,31 @@ export class NewsService {
     return this.db.prepare(sql).all(...params).map((r) => mapRow(r as Record<string, unknown>));
   }
 
+  /**
+   * Observer news detector input. Limit defaults to 20 to bound judge prompt size.
+   * Caller filters by coin / position match — this read returns every ready article.
+   */
+  listRecentRelevant(sinceTs: number, limit = 20): NewsArticle[] {
+    const sql = `
+      SELECT id, source_id, external_id, url, title, snippet, image_url, coins,
+             importance, published_at, fetched_at, expires_at, full_summary,
+             ai_relevant, ai_duplicate_of
+      FROM articles
+      WHERE ai_relevant = 1
+        AND full_summary IS NOT NULL
+        AND ai_duplicate_of IS NULL
+        AND dismissed_at IS NULL
+        AND expires_at > unixepoch()
+        AND published_at > ?
+      ORDER BY published_at DESC, id DESC
+      LIMIT ?
+    `;
+    return this.db
+      .prepare(sql)
+      .all(sinceTs, limit)
+      .map((r) => mapRow(r as Record<string, unknown>));
+  }
+
   /** Search articles by keyword and/or coins. For agent tool use. */
   searchArticles(opts: { query?: string; coins?: string[]; limit?: number } = {}): NewsArticle[] {
     const limit = Math.min(opts.limit ?? 50, 100);

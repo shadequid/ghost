@@ -122,7 +122,8 @@ export interface ToolSummary {
 export interface ContextBuilderConfig {
   workspaceDir: string;
   model: string;
-  timezone?: string;
+  /** Getter invoked at prompt-build time so RPC tz changes take effect live. */
+  getTimezone?: () => string;
   tools?: ToolSummary[];
 }
 
@@ -226,7 +227,7 @@ export class ContextBuilder {
   }
 
   buildRuntimeContext(channel?: string, chatId?: string): string {
-    const tz = this.config.timezone ?? "UTC";
+    const tz = this.config.getTimezone?.() ?? "UTC";
     const now = new Date();
     const timeStr = now.toLocaleString("en-US", {
       timeZone: tz,

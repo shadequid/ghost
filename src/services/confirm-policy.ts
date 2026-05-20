@@ -26,6 +26,11 @@
  */
 
 import { formatUsd } from "../helpers/formatters.js";
+import {
+  composeGenericWizard,
+  composeOpenPositionWizard,
+} from "./wizard-data.js";
+import type { WizardCardData, WizardGenericRow } from "./wizard-data.js";
 
 /** Tool names that require an orchestrator-level confirm card. */
 export const CONFIRMABLE_TOOLS: ReadonlySet<string> = new Set([
@@ -46,6 +51,8 @@ export function isConfirmable(toolName: string): boolean {
 export interface ConfirmDescription {
   title: string;
   bullets: string[];
+  wizard?: WizardCardData;
+  suggestedValue?: string;
 }
 
 export type ConfirmDescriber = (
@@ -115,10 +122,23 @@ function describePlaceOrder(params: Record<string, unknown>): ConfirmDescription
     ? `Side: ${side} ${leverage}x`
     : `Side: ${side}`;
 
+  // Entry comes from tool params (limit only). Market orders leave it
+  // undefined — card mirrors what the agent stated; estimates belong in
+  // the chat advisory, not in backend-derived fields.
+  const wizard = composeOpenPositionWizard({
+    symbol: getString(params, "symbol") ?? "",
+    side: getString(params, "side") ?? "buy",
+    size: getNumber(params, "size") ?? 0,
+    leverage: getNumber(params, "leverage"),
+    orderType: getString(params, "orderType"),
+    entryPrice: price,
+  });
+
   if (orderType === "limit" && price !== undefined) {
     return {
       title: `Place limit order: ${side} ${sizeStr} ${symbol} @ ${formatUsd(price)}?`,
       bullets: [sideRow],
+      wizard,
     };
   }
 
@@ -126,6 +146,7 @@ function describePlaceOrder(params: Record<string, unknown>): ConfirmDescription
   return {
     title: `Place market order: ${side} ${sizeStr} ${symbol}?`,
     bullets: [sideRow],
+    wizard,
   };
 }
 
@@ -134,8 +155,12 @@ function describeBracketOrder(params: Record<string, unknown>): ConfirmDescripti
   const side = sideLabel(getString(params, "side"));
   const leverage = getNumber(params, "leverage");
   const size = getNumber(params, "size");
-  const orderType = getString(params, "orderType")?.toLowerCase();
+  // `ghost_bracket_order` schema has no `orderType` — it's derived from the
+  // presence of `entryPrice` (limit when set, market otherwise). Mirror the
+  // executor's rule (`risk.ts:98`) so the wizard label matches what fires.
+  const rawOrderType = getString(params, "orderType")?.toLowerCase();
   const entryPrice = getNumber(params, "entryPrice") ?? getNumber(params, "price");
+  const orderType = rawOrderType ?? (entryPrice !== undefined ? "limit" : "market");
   const stopLoss = getNumber(params, "stopLoss");
   const takeProfit = getNumber(params, "takeProfit");
 
@@ -154,16 +179,31 @@ function describeBracketOrder(params: Record<string, unknown>): ConfirmDescripti
   const bullets: string[] = [entryRow];
   if (stopLoss !== undefined) bullets.push(`SL: ${formatUsdCompact(stopLoss)}`);
   if (takeProfit !== undefined) bullets.push(`TP: ${formatUsdCompact(takeProfit)}`);
-  return { title, bullets };
+
+  const wizard = composeOpenPositionWizard({
+    symbol: getString(params, "symbol") ?? "",
+    side: getString(params, "side") ?? "buy",
+    size: getNumber(params, "size") ?? 0,
+    leverage: getNumber(params, "leverage"),
+    orderType,
+    entryPrice,
+    stopLoss: getNumber(params, "stopLoss"),
+    takeProfit: getNumber(params, "takeProfit"),
+  });
+
+  return { title, bullets, wizard };
 }
 
 function describeSetSlTp(params: Record<string, unknown>): ConfirmDescription {
   const symbol = upper(getString(params, "symbol"));
   const stopLoss = getNumber(params, "stopLoss");
   const takeProfit = getNumber(params, "takeProfit");
-  // Concise title; prices move into bullets. Multi-step batched cards inline
-  // the bullets into the step label (see runtime.ts) so the levels still
-  // survive in that path.
+
+  // No wizard. The conversation text above already carries the rationale
+  // (cluster, pivot, expected loss in $), and the ActionCard title + bullets
+  // restate the SL/TP price — a separate two-line wizard adds no new info.
+  // Multi-step batched cards inline bullets into the step label
+  // (see runtime.ts) so the levels still survive in that path.
   if (stopLoss !== undefined && takeProfit !== undefined) {
     return {
       title: `Set SL and TP for ${symbol}?`,
@@ -236,16 +276,30 @@ function describePartialClose(params: Record<string, unknown>): ConfirmDescripti
   const symbol = upper(getString(params, "symbol"));
   const pct = getNumber(params, "percentage");
   const size = getNumber(params, "size");
+  const sizeBefore = getNumber(params, "sizeBefore");
+
+  const rows: WizardGenericRow[] = [];
+  if (pct !== undefined) rows.push({ label: "Close %", value: `${pct}%` });
+  if (size !== undefined) rows.push({ label: "Size", value: `${size} ${symbol}` });
+  if (sizeBefore !== undefined && pct !== undefined) {
+    const sizeAfter = sizeBefore * (1 - pct / 100);
+    rows.push({ label: "Size before", value: `${sizeBefore}`, tone: "muted" });
+    rows.push({ label: "Size after", value: `${sizeAfter}` });
+  }
+  const wizard = rows.length > 0
+    ? composeGenericWizard([{ label: `${symbol} partial close`, rows }])
+    : undefined;
+
   if (pct !== undefined) {
     const pctStr = Number.isInteger(pct) ? `${pct}` : pct.toFixed(0);
-    return { title: `Close ${pctStr}% of ${symbol} position?`, bullets: [] };
+    return { title: `Close ${pctStr}% of ${symbol} position?`, bullets: [], wizard };
   }
   if (size !== undefined) {
     // Match chat-table convention: `<size> <SYMBOL>` (see formatPosition in
     // helpers/formatters.ts — "Size: 0.5" with symbol carried separately).
-    return { title: `Close ${size} ${symbol} position?`, bullets: [] };
+    return { title: `Close ${size} ${symbol} position?`, bullets: [], wizard };
   }
-  return { title: `Close part of ${symbol} position?`, bullets: [] };
+  return { title: `Close part of ${symbol} position?`, bullets: [], wizard };
 }
 
 function describeAdjustMargin(params: Record<string, unknown>): ConfirmDescription {
@@ -254,10 +308,20 @@ function describeAdjustMargin(params: Record<string, unknown>): ConfirmDescripti
   if (amount === undefined) {
     return { title: `Adjust margin on ${symbol}?`, bullets: [] };
   }
+  const sign = amount >= 0 ? "+" : "−";
+  const rows: WizardGenericRow[] = [
+    {
+      label: "Margin change",
+      value: `${sign}${formatUsd(Math.abs(amount))}`,
+      tone: amount >= 0 ? "reward" : "risk",
+    },
+  ];
+  const wizard = composeGenericWizard([{ label: `${symbol} margin adjust`, rows }]);
+
   if (amount >= 0) {
-    return { title: `Add ${formatUsd(amount)} margin to ${symbol}?`, bullets: [] };
+    return { title: `Add ${formatUsd(amount)} margin to ${symbol}?`, bullets: [], wizard };
   }
-  return { title: `Reduce ${formatUsd(Math.abs(amount))} margin on ${symbol}?`, bullets: [] };
+  return { title: `Reduce ${formatUsd(Math.abs(amount))} margin on ${symbol}?`, bullets: [], wizard };
 }
 
 // ---------------------------------------------------------------------------
@@ -281,13 +345,14 @@ export const CONFIRM_DESCRIBERS: Record<string, ConfirmDescriber> = {
  * "Confirm <toolName>?" title when the tool name is unknown (defensive —
  * every confirmable tool should have a describer registered above).
  */
-export function describeConfirm(
-  toolName: string,
-  params: unknown,
-): ConfirmDescription {
+export function describeConfirm(toolName: string, params: unknown): ConfirmDescription {
   const safeParams =
     params && typeof params === "object" ? (params as Record<string, unknown>) : {};
   const describer = CONFIRM_DESCRIBERS[toolName];
   if (describer) return describer(safeParams);
-  return { title: `Confirm ${toolName}?`, bullets: [] };
+  // Verb-first fallback (no "Confirm" prefix) — `prefixConfirmTitle` is the
+  // single source of the word "Confirm" so we don't double it for unknown
+  // tools when the runtime caller wraps the title.
+  return { title: `Run ${toolName}?`, bullets: [] };
 }
+

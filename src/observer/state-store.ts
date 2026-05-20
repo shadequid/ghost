@@ -75,6 +75,14 @@ export interface ObserverSnapshot {
    * Bounded to `RECENT_FILL_IDS_CAP` newest entries.
    */
   recentEmittedFillIds: string[];
+  /**
+   * Recently emitted news `articleId`s — dedup window for the news detector.
+   * Same shape and rationale as `recentEmittedFillIds`. Bounded to
+   * `RECENT_NEWS_IDS_CAP`.
+   */
+  recentEmittedNewsIds: string[];
+  /** Unix seconds floor for the next news query (caller applies a 30-min sliding cap when stale). */
+  lastNewsScanTs: number;
 }
 
 /** Cap for the rolling `recentCancelOids` dedup window. Large enough to cover
@@ -85,6 +93,10 @@ export const RECENT_CANCEL_OIDS_CAP = 500;
 /** Cap for the rolling `recentEmittedFillIds` dedup window. Same shape and
  *  rationale as `RECENT_CANCEL_OIDS_CAP`. */
 export const RECENT_FILL_IDS_CAP = 500;
+
+/** Cap for the rolling `recentEmittedNewsIds` dedup window. News volume
+ *  (~10-30/hr peak) is lower than fills, so 200 covers many hours. */
+export const RECENT_NEWS_IDS_CAP = 200;
 
 const KEY_SNAPSHOT = "snapshot";
 
@@ -137,6 +149,8 @@ function emptySnapshot(): ObserverSnapshot {
     lastRestSyncAtMs: 0,
     recentCancelOids: [],
     recentEmittedFillIds: [],
+    recentEmittedNewsIds: [],
+    lastNewsScanTs: 0,
   };
 }
 
@@ -178,6 +192,10 @@ export class ObserverStateStore {
         recentEmittedFillIds: Array.isArray(parsed.recentEmittedFillIds)
           ? parsed.recentEmittedFillIds.filter((o): o is string => typeof o === "string")
           : [],
+        recentEmittedNewsIds: Array.isArray(parsed.recentEmittedNewsIds)
+          ? parsed.recentEmittedNewsIds.filter((o): o is string => typeof o === "string")
+          : [],
+        lastNewsScanTs: typeof parsed.lastNewsScanTs === "number" ? parsed.lastNewsScanTs : 0,
       };
     } catch {
       return emptySnapshot();

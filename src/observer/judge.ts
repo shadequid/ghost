@@ -28,6 +28,7 @@ const EVENT_TYPE_LITERALS = [
   Type.Literal("liquidation_risk"),
   Type.Literal("pnl_snapshot"),
   Type.Literal("price_alert"),
+  Type.Literal("news"),
 ] as const;
 
 const JudgeResponseSchema = Type.Object({

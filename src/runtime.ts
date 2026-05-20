@@ -9,7 +9,6 @@ import {
   getDbPath,
   getSecretKeyPath,
   getCredentialsPath,
-  getCronStorePath,
   getCliWorkspacePath,
   getCliHandoffPath,
   getModelsConfigPath,
@@ -80,6 +79,8 @@ import { NewsService } from "./services/news.js";
 import { RssDiscoveryService } from "./services/rss-discovery.js";
 import { TweetService } from "./services/tweets.js";
 import { PreferenceStore } from "./services/preferences.js";
+import { createTimezoneService, type TimezoneService } from "./services/timezone.js";
+import { buildBuiltInJobs } from "./scheduler/defaults.js";
 import { XFollowService } from "./services/x-follows.js";
 import { XQueryIdCache } from "./services/x-query-ids.js";
 import { TaIndicatorService } from "./services/ta-indicators.js";
@@ -159,6 +160,7 @@ export interface Runtime {
   rssDiscoveryService: RssDiscoveryService;
   tweetService: TweetService;
   preferenceStore: PreferenceStore;
+  timezoneService: TimezoneService;
   xFollowService: XFollowService;
   skillService: SkillService;
   chartSeries: ChartSeriesService;
@@ -262,19 +264,24 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const skillService = new SkillService(db, skillsLoader);
   skillService.syncState();
 
+  // Preference store and timezone service must be created before ContextBuilder
+  // so the live TZ getter can be passed in at construction time.
+  const preferenceStore = new PreferenceStore(db, logger.child({ module: "prefs" }));
+  const timezoneService = createTimezoneService(preferenceStore);
+
   // contextBuilder is created early — tool list wired after tools are registered
   const contextBuilder = new ContextBuilder(
-    { workspaceDir, model: config.model },
+    { workspaceDir, model: config.model, getTimezone: () => timezoneService.get() },
     memoryStore,
     skillsLoader,
   );
   contextBuilder.setDisabledSkillsProvider(() => skillService.getDisabledNames());
 
   // Tools (generic + trading)
-  const cronService = new CronService(getCronStorePath());
+  const cronService = new CronService(db);
   const tools = createToolRegistry(security, {
     cronService,
-    defaultTimezone: config.cron.timezone,
+    timezoneService,
     memoryStore,
     logger: logger.child({ module: "tool" }),
   });
@@ -292,7 +299,6 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const watchlistService = new WatchlistService(db);
   const newsService = new NewsService(db, watchlistService, credentials, logger.child({ module: "news" }));
   const tweetService = new TweetService(db, logger.child({ module: "tweets" }));
-  const preferenceStore = new PreferenceStore(db, logger.child({ module: "prefs" }));
   const xQueryIdCache = new XQueryIdCache();
   const xFollowService = new XFollowService(db, credentials, xQueryIdCache, logger.child({ module: "x-follows" }));
   const taIndicators = new TaIndicatorService(tradingClient);
@@ -349,7 +355,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     eventBus,
     logger,
     customModelRegistry,
-    confirmDeps: { getConfirmService: () => confirmServiceRef },
+    confirmDeps: { getConfirmService: () => confirmServiceRef, approvalManager },
   });
 
   // Background task agent — second Agent instance for daemon background loops.
@@ -371,6 +377,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     customModelRegistry,
     confirmDeps: { getConfirmService: () => null },
     bypassConfirm: true,
+    taskMode: true,
   });
 
   // Serializes all taskAgent calls — prevents concurrent callers from
@@ -473,8 +480,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   // Without this, Agent.state.tools remains the generic-only snapshot from
   // construction and trading tool calls return "Tool not found".
   agent.state.tools = tools.all();
-  // Sync taskAgent's tool snapshot too — same full registry.
-  taskAgent.state.tools = tools.all();
+  // Sync taskAgent's tool snapshot — filtered to read-only + save_memory + cron
+  // so background loops cannot trigger exec/file-write/trading-write confirms.
+  // Runner re-applies the same filter per call (see src/agent/runner.ts).
+  taskAgent.state.tools = tools.taskAgentTools();
 
   // Build claude-cli provider after tools + confirmService exist — the MCP
   // server captures the tool list at construction time.
@@ -537,6 +546,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     config: config.observer,
     tradingClient,
     alertRules,
+    newsService,
     notifications,
     priceCache,
     approvalManager,
@@ -583,6 +593,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     rssDiscoveryService,
     tweetService,
     preferenceStore,
+    timezoneService,
     xFollowService,
     skillService,
     chartSeries,
@@ -638,6 +649,7 @@ export function getApiKey(
 export interface ConfirmInterceptionDeps {
   /** Late-bound — set after orchestrator + confirmService are constructed. */
   getConfirmService: () => ConfirmService | null;
+  approvalManager?: ApprovalManager;
 }
 
 /** Options for the createAgent() factory. */
@@ -662,6 +674,14 @@ export interface CreateAgentOptions {
    * user session to present a confirm card to. Defaults to false.
    */
   bypassConfirm?: boolean;
+  /**
+   * When true, the agent's initial tool snapshot is filtered to the
+   * taskAgent-safe subset (`tools.taskAgentTools()`). Pair with
+   * `bypassConfirm: true` for background agents. Runner re-applies the same
+   * filter per call, so this flag is defense-in-depth for the construction
+   * window before the post-registration sync runs.
+   */
+  taskMode?: boolean;
 }
 
 /**
@@ -686,6 +706,7 @@ export function createAgent(opts: CreateAgentOptions): Agent {
     opts.customModelRegistry,
     opts.confirmDeps,
     opts.bypassConfirm ?? false,
+    opts.taskMode ?? false,
   );
   return new Agent(initialOptions);
 }
@@ -706,6 +727,7 @@ export function buildAgentOptions(
   customModelRegistry: CustomModelRegistry,
   confirmDeps: ConfirmInterceptionDeps,
   bypassConfirm = false,
+  taskMode = false,
 ): AgentOptions {
   // Qwen-on-Ollama needs `thinkingLevel: "off"` end-to-end so that
   // pi-agent forwards no `reasoningEffort`, which lets pi-ai's
@@ -728,7 +750,11 @@ export function buildAgentOptions(
       // stream() runs its own agent loop via query() which drives the in-process
       // MCP server. Passing tools.all() here would cause pi-agent to also attempt
       // tool calls, resulting in double-invocation and broken execution semantics.
-      tools: config.provider === "claude-cli" ? [] : tools.all(),
+      tools: config.provider === "claude-cli"
+        ? []
+        : taskMode
+          ? tools.taskAgentTools()
+          : tools.all(),
       thinkingLevel: effectiveThinkingLevel,
     },
     getApiKey: config.provider === "claude-cli"
@@ -879,7 +905,7 @@ interface BatchedConfirm {
  * confirmable peers still wait on the batch decision so a rejected confirm
  * doesn't allow read-only-looking siblings to execute mid-batch.
  */
-async function runBatchedConfirm(
+export async function runBatchedConfirm(
   assistantMessage: object,
   callName: string,
   callArgs: unknown,
@@ -918,10 +944,21 @@ async function runBatchedConfirm(
     let title: string;
     const lines: string[] = [];
     let steps: string[] | undefined;
+    let extras: {
+      wizard?: import("./services/wizard-data.js").WizardCardData;
+      suggestedValue?: string;
+      toolName?: string;
+      symbol?: string;
+    } | undefined;
     if (isMulti) {
       title = `Confirm ${confirmable.length} actions?`;
       const stepList: string[] = [];
       for (const c of confirmable) {
+        // `ctx` intentionally omitted — multi-step bullets today are pure
+        // params (Side / SL / TP / etc.) and don't read from the trading
+        // context. If a future bullet needs free margin or mark price,
+        // pre-fetch per unique symbol via Promise.all + Map<symbol, ctx>
+        // and pass the corresponding entry here.
         const desc = describeConfirm(c.name, c.args);
         // Strip the trailing "?" from titles when used as a numbered
         // step label — multiple "?"s in a numbered list reads cluttered.
@@ -932,14 +969,29 @@ async function runBatchedConfirm(
         stepList.push(`${head}${tail}`);
       }
       steps = stepList;
+      // Multi-call batched cards intentionally drop the wizard payload —
+      // rendering multiple wizards in a single card is confusing and the
+      // numbered-step list already carries the safety data inline. Frontend
+      // (Plan 2) skips wizard rendering when `preview.wizard` is undefined.
+      extras = undefined;
     } else {
       const only = confirmable[0];
+      const args = (only.args ?? {}) as Record<string, unknown>;
+      const symbol = typeof args.symbol === "string" ? args.symbol : undefined;
       const desc = describeConfirm(only.name, only.args);
+      // Title kept raw ("Place bracket: …"). Per-channel renderers add their
+      // own prefix when desired — web's ActionCard prepends "Confirm "; the
+      // Telegram channel renders the raw title as the bold header.
       title = desc.title;
       lines.push(...desc.bullets);
+      extras = {
+        wizard: desc.wizard,
+        suggestedValue: desc.suggestedValue,
+        symbol,
+      };
     }
     try {
-      const res = await confirmService.confirm(title, { lines, steps });
+      const res = await confirmService.confirm(title, { lines, steps }, extras);
       return { decision: res.decision, reason: res.reason };
     } catch (err) {
       logger.warn({ err }, "confirm service threw; treating as rejected");

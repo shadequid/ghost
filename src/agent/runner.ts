@@ -71,7 +71,11 @@ export class Runner {
     const next = this.inFlight.then(async () => {
       // Refresh the agent's tool snapshot for symmetry with Orchestrator.runPrompt
       // so that any post-boot tool registrations are visible to this call.
-      const tools = this.registry.all();
+      // Filter to taskAgent-safe tools — background loops (news summarize,
+      // event judge, tweet evaluate, cron delivery, …) must never trigger
+      // a confirm card or run a write/exec tool. Allowed set =
+      // `READ_TOOLS` ∪ {save_memory, cron} (see ToolRegistry.taskAgentTools).
+      const tools = this.registry.taskAgentTools();
       this.agent.state.tools = tools;
 
       // Clear any channel/chatId context that a previous Orchestrator call may

@@ -2,6 +2,16 @@
  * Shared data models for Ghost trading extension.
  */
 
+/**
+ * Per-asset metadata exposed by the trading client and forwarded over the wire
+ * by `trading.tokens.list`. `isDelisted` is sparse — present only on entries
+ * HL has flagged removed.
+ */
+export interface TokenInfo {
+  symbol: string;
+  isDelisted?: boolean;
+}
+
 export interface Balance {
   totalEquity: number;
   availableBalance: number;

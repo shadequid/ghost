@@ -5,6 +5,7 @@ import type { Logger } from "pino";
 import type { WebSearchConfig } from "./web-search.js";
 import type { CronService } from "../scheduler/service.js";
 import type { MemoryStore } from "../memory/store.js";
+import type { TimezoneService } from "../services/timezone.js";
 import { ToolRegistry } from "./registry.js";
 import { ReadFileTool } from "./read-file.js";
 import { WriteFileTool } from "./write-file.js";
@@ -31,7 +32,9 @@ export { SaveMemoryTool } from "./save-memory.js";
 
 export interface CreateToolRegistryOptions {
   cronService: CronService;
-  defaultTimezone: string;
+  /** Live TZ service — CronTool reads tz at execute time so changes take
+   *  effect without a daemon restart. */
+  timezoneService: TimezoneService;
   webSearchConfig?: WebSearchConfig;
   memoryStore: MemoryStore;
   logger: Logger;
@@ -52,7 +55,7 @@ export function createToolRegistry(
   reg(new WebSearchTool(options.webSearchConfig) as AgentTool<TSchema>);
   reg(new WebFetchTool() as AgentTool<TSchema>);
 
-  reg(new CronTool(options.cronService, options.defaultTimezone) as AgentTool<TSchema>);
+  reg(new CronTool(options.cronService, options.timezoneService) as AgentTool<TSchema>);
   reg(new SaveMemoryTool(options.memoryStore) as AgentTool<TSchema>);
 
   return registry;

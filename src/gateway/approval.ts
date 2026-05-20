@@ -4,12 +4,8 @@ import type { ApprovalOrigin } from "../events/approval-events.js";
 const RESOLVED_GRACE_MS = 60_000;
 
 /**
- * `expired` is retained on the decision union for back-compat with stored
- * session JSONL and for any future "session aborted / disconnected" scenario,
- * but production no longer auto-expires pending confirms — the card waits
- * indefinitely for an explicit user action. Web mock v2 dropped the auto-
- * cancel timer per the trader feedback that it caused panic-flicker on
- * partial fills.
+ * `expired` is retained on the decision union for stored session JSONL
+ * back-compat; production no longer auto-expires pending confirms.
  */
 export type ApprovalDecision = "approved" | "rejected" | "expired";
 
@@ -46,6 +42,19 @@ export interface ApprovalPreview {
   riskAssessment?: string;
   warnings?: string[];
   direction?: "long" | "short";
+  /**
+   * Optional structured data view shipped alongside the approval preview.
+   * When present, frontend renders the WizardCard (read-only) above the
+   * ActionCard.
+   */
+  wizard?: import("../services/wizard-data.js").WizardCardData;
+  /**
+   * Hint to the frontend that the user's free-text response should be
+   * interpreted as a custom value override (e.g. "Size: $1000?" with
+   * suggestedValue "1000" — free text "500" means use 500 instead).
+   * When unset, free text is treated as "discuss more" chat.
+   */
+  suggestedValue?: string;
 }
 
 interface PendingApproval {
@@ -79,10 +88,10 @@ export class ApprovalManager {
     promise: Promise<ApprovalDecision>;
     createdAtMs: number;
   } {
-    // If a previous pending approval exists for this session it's superseded
-    // by the new request — mark it expired so its waiter unblocks. This is
-    // the only path that ever produces an `expired` decision now that the
-    // 5-minute auto-cancel timer is gone.
+    // If a previous pending approval exists for this session, mark it
+    // expired so its waiter unblocks. This is the only path that ever
+    // produces an `expired` decision now that the 5-minute auto-cancel
+    // timer is gone.
     const existing = this.bySession.get(sessionKey);
     if (existing) this.expire(existing);
 
@@ -121,6 +130,10 @@ export class ApprovalManager {
     return this.pending.get(approvalId)?.reason ?? null;
   }
 
+  getPreview(approvalId: string): ApprovalPreview | undefined {
+    return this.pending.get(approvalId)?.preview;
+  }
+
   getPending(sessionKey: string): { approvalId: string; preview: ApprovalPreview; createdAtMs: number } | null {
     const id = this.bySession.get(sessionKey);
     if (!id) return null;
@@ -143,9 +156,9 @@ export class ApprovalManager {
 
   /**
    * Mark a pending approval expired and unblock its waiter. Called only
-   * when a new approval supersedes an existing one for the same session
-   * (see `create`). No timer-based expiry exists — the trader's confirm
-   * waits indefinitely for an explicit decision.
+   * when a new approval claims the same `sessionKey` (see `create`).
+   * No timer-based expiry exists — the trader's confirm waits indefinitely
+   * for an explicit decision.
    */
   private expire(approvalId: string): void {
     const entry = this.pending.get(approvalId);

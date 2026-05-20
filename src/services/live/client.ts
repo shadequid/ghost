@@ -8,7 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type {
   Balance, Position, OpenOrder, Fill, Ticker, Kline, Orderbook,
   PlaceOrderParams, PlaceOrderResult, CancelOrderResult, LeverageResult,
-  OrderRecord,
+  OrderRecord, TokenInfo,
 } from "../interfaces/trading-types.js";
 import type { ITradingSubscription } from "../interfaces/trading-client.js";
 import { fetchBinanceKlines } from "../binance-klines.js";
@@ -86,6 +86,8 @@ interface AssetMeta {
   szDecimals?: number;
   /** Surfaced via getMaxLeverage() so callers (gateway, future tools) can render leverage caps without re-fetching meta. */
   maxLeverage?: number;
+  /** HL flags markets it has removed; consumers filter these out of token lists/charts. */
+  isDelisted?: boolean;
 }
 
 /**
@@ -226,7 +228,7 @@ export class HyperliquidClient implements ITradingClient {
   private assetMap: Map<string, number> = new Map();
   private szDecimals: Map<string, number> = new Map();
   private maxLeverage: Map<string, number> = new Map();
-  private assetNames: string[] = [];
+  private assets: TokenInfo[] = [];
   private metaLoaded = false;
   // Single-flight promise for concurrent ensureMeta() callers during rebuild.
   private metaInFlight: Promise<void> | null = null;
@@ -461,7 +463,7 @@ export class HyperliquidClient implements ITradingClient {
       }
     }
 
-    this.assetNames = merged.map((a) => a.name);
+    this.assets = merged.map((a) => a.isDelisted ? { symbol: a.name, isDelisted: true } : { symbol: a.name });
     merged.forEach((a, idx) => {
       // Store keys in resolveSymbol canonical form so HIP-3 lookups match.
       // resolveSymbol("xyz:AAPL") → "xyz:AAPL" (lowercase dex, uppercase asset)
@@ -484,7 +486,12 @@ export class HyperliquidClient implements ITradingClient {
 
   /** All asset names across native + HIP-3 dexes as loaded by ensureMeta. */
   getAllAssetNames(): string[] {
-    return [...this.assetNames];
+    return this.assets.map((a) => a.symbol);
+  }
+
+  /** Per-asset meta surface used by callers that need the delisted flag (e.g. token snapshot). */
+  getAllAssets(): ReadonlyArray<TokenInfo> {
+    return this.assets;
   }
 
   /** Whether a (resolved) symbol is present in the loaded universe. */
@@ -843,13 +850,25 @@ export class HyperliquidClient implements ITradingClient {
     return size.toFixed(decimals);
   }
 
-  private formatPrice(price: number): string {
-    return parseFloat(price.toPrecision(5)).toString();
+  /**
+   * Format a price for HL submission. HL enforces TWO independent caps:
+   *   - max 5 significant figures
+   *   - max (MAX_DECIMALS - szDecimals) decimal places, where MAX_DECIMALS=6 for perps
+   * The tighter of the two wins. Symbols with high szDecimals + sub-dollar
+   * prices (e.g. APT @ ~$0.93, szDecimals=2 → max 4 decimals) used to silently
+   * over-emit decimals through `toPrecision(5)` alone — HL responded "invalid price".
+   */
+  private formatPrice(symbol: string, price: number): string {
+    const resolved = this.resolveSymbol(symbol);
+    const szDecimals = this.szDecimals.get(resolved) ?? 0;
+    const maxDecimals = Math.max(0, 6 - szDecimals);
+    const trimmed = parseFloat(price.toPrecision(5));
+    return parseFloat(trimmed.toFixed(maxDecimals)).toString();
   }
 
-  private slippagePrice(midPrice: number, isBuy: boolean, slippagePct: number): string {
+  private slippagePrice(symbol: string, midPrice: number, isBuy: boolean, slippagePct: number): string {
     const factor = isBuy ? (1 + slippagePct / 100) : (1 - slippagePct / 100);
-    return this.formatPrice(midPrice * factor);
+    return this.formatPrice(symbol, midPrice * factor);
   }
 
   async placeOrder(params: PlaceOrderParams): Promise<PlaceOrderResult> {
@@ -870,37 +889,37 @@ export class HyperliquidClient implements ITradingClient {
     switch (params.orderType) {
       case "market": {
         const ticker = await this.getTicker(params.symbol);
-        price = this.slippagePrice(ticker.midPrice, isBuy, params.slippagePct ?? 0.5);
+        price = this.slippagePrice(params.symbol, ticker.midPrice, isBuy, params.slippagePct ?? 0.5);
         orderType = { limit: { tif: "Ioc" } };
         break;
       }
       case "limit": {
         if (!params.price) throw new Error("Limit order requires price");
-        price = this.formatPrice(params.price);
+        price = this.formatPrice(params.symbol, params.price);
         orderType = { limit: { tif: params.tif ?? "Gtc" } };
         break;
       }
       case "stop_market": {
         if (!params.price) throw new Error("Stop market order requires trigger price");
-        price = this.formatPrice(params.price);
+        price = this.formatPrice(params.symbol, params.price);
         orderType = { trigger: { isMarket: true, triggerPx: price, tpsl: "sl" } };
         break;
       }
       case "stop_limit": {
         if (!params.price) throw new Error("Stop limit order requires trigger price");
-        price = this.formatPrice(params.price);
+        price = this.formatPrice(params.symbol, params.price);
         orderType = { trigger: { isMarket: false, triggerPx: price, tpsl: "sl" } };
         break;
       }
       case "take_profit": {
         if (!params.price) throw new Error("Take profit order requires trigger price");
-        price = this.formatPrice(params.price);
+        price = this.formatPrice(params.symbol, params.price);
         orderType = { trigger: { isMarket: true, triggerPx: price, tpsl: "tp" } };
         break;
       }
       case "take_profit_limit": {
         if (!params.price) throw new Error("Take profit limit order requires price");
-        price = this.formatPrice(params.price);
+        price = this.formatPrice(params.symbol, params.price);
         orderType = { trigger: { isMarket: false, triggerPx: price, tpsl: "tp" } };
         break;
       }

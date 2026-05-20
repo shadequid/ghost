@@ -56,6 +56,7 @@ describe("daemon", () => {
           tools: runtime.tools,
           sessionManager: runtime.sessionManager,
           cronService: runtime.cronService,
+          timezoneService: runtime.timezoneService,
           configPath,
           tradingClient: runtime.tradingClient,
           walletStore: runtime.walletStore,

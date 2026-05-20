@@ -31,6 +31,8 @@ describe("ObserverStateStore", () => {
     expect(snap.lastRestSyncAtMs).toBe(0);
     expect(snap.recentCancelOids).toEqual([]);
     expect(snap.recentEmittedFillIds).toEqual([]);
+    expect(snap.recentEmittedNewsIds).toEqual([]);
+    expect(snap.lastNewsScanTs).toBe(0);
   });
 
   test("save() / load() round-trip preserves all fields", () => {
@@ -62,6 +64,8 @@ describe("ObserverStateStore", () => {
       lastRestSyncAtMs: 1_700_000_000_000,
       recentCancelOids: ["c1", "c2", "c3"],
       recentEmittedFillIds: ["f1", "f2"],
+      recentEmittedNewsIds: ["n1", "n2", "n3"],
+      lastNewsScanTs: 1_700_000_055,
     });
     const back = store.load();
     expect(back.lastFillTimestamp).toBe(1_700_000_060_000);
@@ -73,6 +77,17 @@ describe("ObserverStateStore", () => {
     expect(back.positions["BTC|long"]?.lastFiredAtMs).toBe(1_700_000_050_000);
     expect(back.recentCancelOids).toEqual(["c1", "c2", "c3"]);
     expect(back.recentEmittedFillIds).toEqual(["f1", "f2"]);
+    expect(back.recentEmittedNewsIds).toEqual(["n1", "n2", "n3"]);
+    expect(back.lastNewsScanTs).toBe(1_700_000_055);
+  });
+
+  test("load() returns recentEmittedNewsIds default [] for legacy rows", () => {
+    db.run(
+      `INSERT INTO observer_state (key, value) VALUES ('snapshot', '{"recentCancelOids":["a"]}')`,
+    );
+    const store = new ObserverStateStore(db);
+    expect(store.load().recentEmittedNewsIds).toEqual([]);
+    expect(store.load().lastNewsScanTs).toBe(0);
   });
 
   test("load() returns recentEmittedFillIds default [] for legacy rows", () => {
@@ -121,8 +136,8 @@ describe("ObserverStateStore", () => {
 
   test("save() overwrites prior snapshot (single-row semantics)", () => {
     const store = new ObserverStateStore(db);
-    store.save({ positions: {}, lastFillTimestamp: 100, openOrderIds: [], lastRestSyncAtMs: 0, recentCancelOids: [], recentEmittedFillIds: [] });
-    store.save({ positions: {}, lastFillTimestamp: 200, openOrderIds: [], lastRestSyncAtMs: 0, recentCancelOids: [], recentEmittedFillIds: [] });
+    store.save({ positions: {}, lastFillTimestamp: 100, openOrderIds: [], lastRestSyncAtMs: 0, recentCancelOids: [], recentEmittedFillIds: [], recentEmittedNewsIds: [], lastNewsScanTs: 0 });
+    store.save({ positions: {}, lastFillTimestamp: 200, openOrderIds: [], lastRestSyncAtMs: 0, recentCancelOids: [], recentEmittedFillIds: [], recentEmittedNewsIds: [], lastNewsScanTs: 0 });
     expect(store.load().lastFillTimestamp).toBe(200);
   });
 
@@ -136,12 +151,14 @@ describe("ObserverStateStore", () => {
 
   test("clear() resets to empty", () => {
     const store = new ObserverStateStore(db);
-    store.save({ positions: {}, lastFillTimestamp: 500, openOrderIds: ["x"], lastRestSyncAtMs: 0, recentCancelOids: ["dropMe"], recentEmittedFillIds: ["dropMe2"] });
+    store.save({ positions: {}, lastFillTimestamp: 500, openOrderIds: ["x"], lastRestSyncAtMs: 0, recentCancelOids: ["dropMe"], recentEmittedFillIds: ["dropMe2"], recentEmittedNewsIds: ["dropMe3"], lastNewsScanTs: 999 });
     store.clear();
     const snap = store.load();
     expect(snap.lastFillTimestamp).toBe(0);
     expect(snap.openOrderIds).toEqual([]);
     expect(snap.recentCancelOids).toEqual([]);
     expect(snap.recentEmittedFillIds).toEqual([]);
+    expect(snap.recentEmittedNewsIds).toEqual([]);
+    expect(snap.lastNewsScanTs).toBe(0);
   });
 });

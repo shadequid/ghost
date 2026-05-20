@@ -84,7 +84,7 @@ Options:
   --api-key KEY             Explicit API key (overrides eval.json)
   --eval-skills CSV         Skills to target in scenario gen, comma-separated
                             (default: market-intel,technical-analysis,pre-trade-advisory,
-                            trade-executor,risk-manager,position-monitor)
+                            trade-executor,ask-user-questions,risk-manager,position-monitor)
   --help                    Show this help
 `;
 

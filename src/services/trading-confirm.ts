@@ -17,9 +17,10 @@
  * as a synthetic tool result so the LLM can adapt instead of retrying.
  *
  * Auto-cancel: there is none. Confirms wait indefinitely for an explicit
- * user decision. Track B's mock dropped the 5-min timer per trader feedback
+ * user decision. The 5-min timer was dropped per trader feedback
  * (panic-flicker on partial fills); the only remaining `expired` decision
- * comes from a same-session supersede.
+ * comes from a same-session `create()` taking the slot of a stale pending
+ * approval (see `ApprovalManager.expire`).
  */
 
 import type { ApprovalManager, ApprovalPreview } from "../gateway/approval.js";
@@ -29,7 +30,7 @@ import { ApprovalEvents } from "../events/approval-events.js";
 
 export interface ConfirmDecision {
   decision: "approved" | "rejected";
-  /** Optional free-text reason supplied with a rejection. Empty for silent rejects. */
+  /** Optional user-supplied free-text reason from the reject card. */
   reason?: string;
 }
 
@@ -46,15 +47,23 @@ export interface ConfirmBody {
   steps?: string[];
 }
 
+export interface ConfirmExtras {
+  wizard?: import("./wizard-data.js").WizardCardData;
+  suggestedValue?: string;
+  /** Symbol attached to the approval preview for renderer-side direction
+   *  inference and display. */
+  symbol?: string;
+}
+
 export interface ConfirmService {
-  confirm(title: string, body: ConfirmBody): Promise<ConfirmDecision>;
+  confirm(title: string, body: ConfirmBody, extras?: ConfirmExtras): Promise<ConfirmDecision>;
 }
 
 // ---------------------------------------------------------------------------
 // Daemon mode (web + Telegram)
 // ---------------------------------------------------------------------------
 
-function buildPreview(title: string, body: ConfirmBody): ApprovalPreview {
+function buildPreview(title: string, body: ConfirmBody, extras?: ConfirmExtras): ApprovalPreview {
   const lines = (body.lines ?? []).filter((l) => l !== undefined && l !== null);
   const steps = (body.steps ?? []).filter((s) => s !== undefined && s !== null);
   // Legacy shape preserved for any consumer that still reads structured fields
@@ -90,11 +99,14 @@ function buildPreview(title: string, body: ConfirmBody): ApprovalPreview {
     summary,
     details,
     warnings: warnings.length > 0 ? warnings : undefined,
+    symbol: extras?.symbol,
     direction: blob.includes("buy") || blob.includes("long")
       ? "long"
       : blob.includes("sell") || blob.includes("short")
         ? "short"
         : undefined,
+    wizard: extras?.wizard,
+    suggestedValue: extras?.suggestedValue,
   };
 }
 
@@ -105,8 +117,8 @@ export class DaemonConfirmService implements ConfirmService {
     private readonly orchestrator: Orchestrator,
   ) {}
 
-  async confirm(title: string, body: ConfirmBody): Promise<ConfirmDecision> {
-    const preview = buildPreview(title, body);
+  async confirm(title: string, body: ConfirmBody, extras?: ConfirmExtras): Promise<ConfirmDecision> {
+    const preview = buildPreview(title, body, extras);
     const sessionKey = `trade:${crypto.randomUUID().slice(0, 8)}`;
     const preText = this.orchestrator.getCurrentTurnText();
     const origin = this.orchestrator.getCurrentTurnOrigin();

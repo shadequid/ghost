@@ -156,6 +156,17 @@ export function stripCustomTags(text: string): string {
   // mid-paragraph (no preceding newline) are intentionally left unchanged.
   out = out.replace(/(\n)(\x00I_OPEN\x00(?:🐂 |🐻 |〰️ )?)/g, "$1\n$2");
 
+  // <AskUserQuestion>…</AskUserQuestion> — wizard ask block. Web
+  // renders this as an interactive card; Telegram has no inline card
+  // affordance, so we flatten it into a numbered question list with a
+  // hint about the expected reply shape. The trade-executor skill
+  // commits the agent to plain `<title> = <answer>` lines, one per
+  // question, on either channel.
+  out = out.replace(
+    /<ask_user_question\s*>([\s\S]*?)<\/ask_user_question>/gi,
+    (_full, inner: string) => formatAskFallback(inner),
+  );
+
   // <chart symbol="X" interval="Y" ... /> — emit a footer hint instead of
   // dropping silently. The paired form <chart ...>...</chart> also emits the
   // same hint (rare LLM variant). Both must be handled BEFORE the generic
@@ -190,4 +201,41 @@ export function stripCustomTags(text: string): string {
   out = out.replace(/<[a-zA-Z][^>]*$/g, "");
 
   return out;
+}
+
+/**
+ * Render the inner of a `<AskUserQuestion>…</AskUserQuestion>` block
+ * as a numbered Q list for Telegram. Each Question shows the Title
+ * and an Options list (when present).
+ */
+function formatAskFallback(inner: string): string {
+  const questionRe = /<question>([\s\S]*?)<\/question>/gi;
+  const titleRe = /<title>([\s\S]*?)<\/title>/i;
+  const optionsRe = /<options>([\s\S]*?)<\/options>/i;
+  const optionRe = /<option>([\s\S]*?)<\/option>/gi;
+
+  const lines: string[] = [];
+  let m: RegExpExecArray | null;
+  let i = 1;
+  while ((m = questionRe.exec(inner)) !== null) {
+    const body = m[1];
+    const title = titleRe.exec(body)?.[1]?.trim();
+    if (!title) continue;
+    let entry = `${i}. ${title}`;
+    const optionsBlock = optionsRe.exec(body)?.[1];
+    if (optionsBlock) {
+      const opts: string[] = [];
+      optionRe.lastIndex = 0;
+      let om: RegExpExecArray | null;
+      while ((om = optionRe.exec(optionsBlock)) !== null) {
+        const v = om[1].trim();
+        if (v) opts.push(v);
+      }
+      if (opts.length > 0) entry += `\n   Options: ${opts.join(" / ")}`;
+    }
+    lines.push(entry);
+    i++;
+  }
+  if (lines.length === 0) return "";
+  return `\n${lines.join("\n")}`;
 }
