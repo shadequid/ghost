@@ -85,9 +85,9 @@ describe("PaperEngine", () => {
       symbol: "BTC", side: "buy", size: 1, orderType: "market",
     });
     const fills = await engine.getFills();
-    // fillPrice = midPrice * (1 + 0.5/100) = 65000 * 1.005 = 65325
-    // taker fee = 65325 * 0.00045 = 29.39625
-    expect(fills[0].fee).toBeCloseTo(29.396, 2);
+    // Paper trading fills at midPrice with zero slippage.
+    // taker fee = 65000 * 0.00045 = 29.25
+    expect(fills[0].fee).toBeCloseTo(29.25, 2);
   });
 
   test("closes position and realizes PnL", async () => {
@@ -188,17 +188,16 @@ describe("PaperEngine", () => {
     expect(positions[0].size).toBeCloseTo(0.5);
   });
 
-  test("market buy fills at midPrice + slippage", async () => {
+  test("market buy fills at midPrice (zero slippage)", async () => {
     await engine.setLeverage("BTC", 10);
     await engine.placeOrder({
       symbol: "BTC", side: "buy", size: 1, orderType: "market",
     });
     const fills = await engine.getFills();
-    // midPrice = 65000, default slippage 0.5% -> 65000 * 1.005 = 65325
-    expect(fills[0].price).toBeCloseTo(65325, 0);
+    expect(fills[0].price).toBeCloseTo(65000, 0);
   });
 
-  test("market sell fills at midPrice - slippage", async () => {
+  test("market sell fills at midPrice (zero slippage)", async () => {
     await engine.setLeverage("BTC", 10);
     // Open long first so we can sell
     await engine.placeOrder({
@@ -208,20 +207,19 @@ describe("PaperEngine", () => {
       symbol: "BTC", side: "sell", size: 0.5, orderType: "market",
     });
     const fills = await engine.getFills();
-    // Find the sell fill; midPrice = 65000, 0.5% slippage -> 65000 * 0.995 = 64675
     const sellFill = fills.find((f) => f.side === "sell");
     expect(sellFill).toBeDefined();
-    expect(sellFill!.price).toBeCloseTo(64675, 0);
+    expect(sellFill!.price).toBeCloseTo(65000, 0);
   });
 
-  test("custom slippagePct is respected", async () => {
+  test("slippagePct param is accepted on the wire but ignored", async () => {
     await engine.setLeverage("BTC", 10);
     await engine.placeOrder({
       symbol: "BTC", side: "buy", size: 1, orderType: "market", slippagePct: 1.0,
     });
     const fills = await engine.getFills();
-    // midPrice = 65000, 1.0% slippage -> 65000 * 1.01 = 65650
-    expect(fills[0].price).toBeCloseTo(65650, 0);
+    // Paper engine ignores slippagePct — fill is always at midPrice.
+    expect(fills[0].price).toBeCloseTo(65000, 0);
   });
 
   // ── Story 09-06: Reduce-only enforcement ──

@@ -205,35 +205,20 @@ export function stripCustomTags(text: string): string {
 
 /**
  * Render the inner of a `<AskUserQuestion>…</AskUserQuestion>` block
- * as a numbered Q list for Telegram. Each Question shows the Title
- * and an Options list (when present).
+ * as a numbered Q list for Telegram. Only titles are shown — options
+ * are intentionally omitted to keep the chat output compact.
  */
 function formatAskFallback(inner: string): string {
   const questionRe = /<question>([\s\S]*?)<\/question>/gi;
   const titleRe = /<title>([\s\S]*?)<\/title>/i;
-  const optionsRe = /<options>([\s\S]*?)<\/options>/i;
-  const optionRe = /<option>([\s\S]*?)<\/option>/gi;
 
   const lines: string[] = [];
   let m: RegExpExecArray | null;
   let i = 1;
   while ((m = questionRe.exec(inner)) !== null) {
-    const body = m[1];
-    const title = titleRe.exec(body)?.[1]?.trim();
+    const title = titleRe.exec(m[1])?.[1]?.trim();
     if (!title) continue;
-    let entry = `${i}. ${title}`;
-    const optionsBlock = optionsRe.exec(body)?.[1];
-    if (optionsBlock) {
-      const opts: string[] = [];
-      optionRe.lastIndex = 0;
-      let om: RegExpExecArray | null;
-      while ((om = optionRe.exec(optionsBlock)) !== null) {
-        const v = om[1].trim();
-        if (v) opts.push(v);
-      }
-      if (opts.length > 0) entry += `\n   Options: ${opts.join(" / ")}`;
-    }
-    lines.push(entry);
+    lines.push(`${i}. ${title}`);
     i++;
   }
   if (lines.length === 0) return "";

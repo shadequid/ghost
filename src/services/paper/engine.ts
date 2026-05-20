@@ -359,10 +359,11 @@ export class PaperEngine {
 
   private async executeMarketOrder(symbol: string, params: PlaceOrderParams, isMaker = false): Promise<PlaceOrderResult> {
     const ticker = await this.marketClient.getTicker(symbol);
-    // Market orders fill at midPrice with slippage; limit triggers fill at limit price (midPrice fallback)
-    const slippage = params.slippagePct ?? 0.5;
-    const slippageMul = params.side === "buy" ? (1 + slippage / 100) : (1 - slippage / 100);
-    const fillPrice = isMaker ? ticker.midPrice : ticker.midPrice * slippageMul;
+    // Paper trading fills at midPrice with zero slippage by design — the
+    // simulation models the user's strategy, not the venue's microstructure.
+    // `isMaker` still drives fee selection below; `params.slippagePct` is
+    // accepted on the wire for parity with the live client but ignored.
+    const fillPrice = ticker.midPrice;
 
     // All SQL writes in a transaction for consistency
     return this.db.transaction(() => {
