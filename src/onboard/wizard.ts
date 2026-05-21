@@ -62,6 +62,13 @@ async function persistTimezone(tz: string, logger: Logger): Promise<void> {
   }
 }
 
+/**
+ * Hint shown when a provider uses a loopback callback server and the user
+ * may need to paste the authorization code manually.
+ */
+const MANUAL_CODE_HINT =
+  "If the browser cannot reach this machine, copy the `code` parameter from the redirect URL and paste it here.";
+
 /** Validate a custom provider name for models.json. */
 function validateCustomProviderName(name: string): string | undefined {
   if (!name) return "Provider name is required.";
@@ -189,6 +196,9 @@ export async function runHeadless(
           const cmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
           exec(`${cmd} "${info.url}"`);
           if (info.instructions) console.log(`[ghost] ${info.instructions}`);
+          if (providerInfo.usesCallbackServer) {
+            console.log(`[ghost] ${MANUAL_CODE_HINT}`);
+          }
         },
         onPrompt: async (prompt) => {
           const rl = await import("node:readline");
@@ -201,6 +211,20 @@ export async function runHeadless(
           });
         },
         onProgress: (msg) => { console.log(`[ghost] ${msg}`); },
+        onManualCodeInput: async () => {
+          const code = await text({
+            message: "Paste the authorization code (or full redirect URL)",
+            placeholder: "code=…",
+            validate: (v) => (v && v.trim().length > 0 ? undefined : "Code is required"),
+          });
+          if (isCancel(code)) { cancel("Setup cancelled."); process.exit(0); }
+          // Pass the raw user input through to pi-ai. Its parseAuthorizationInput
+          // handles every shape (URL, fragment, legacy "code#state", bare code),
+          // decodes malformed percent-escapes safely via URLSearchParams, and —
+          // most importantly — preserves the `state` parameter so it can be
+          // validated against the PKCE verifier (CSRF protection).
+          return (code as string).trim();
+        },
       });
       console.log(`[ghost] OAuth authentication complete`);
     } catch (err) {
@@ -321,7 +345,7 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
     mode = modeAnswer as string;
   }
 
-  intro("Welcome to Ghost — the fastest, smallest AI assistant.\nThis wizard will configure your agent in under 60 seconds.");
+  intro("Welcome — I'm Ghost, your trading companion on Hyperliquid.\nLet's get you set up. A few quick questions, then I'll stay close.");
 
   // Step 1/5: Trading mode — only asked for full onboard.
   // Skipped when --paper CLI flag was already supplied.
@@ -455,12 +479,29 @@ export async function runWizard(daemonOptions: WizardOptions): Promise<void> {
         onAuth: (info) => {
           log.info(`Open this URL:\n  ${info.url}`);
           if (info.instructions) log.info(info.instructions);
+          if (providerInfo.usesCallbackServer) {
+            log.info(MANUAL_CODE_HINT);
+          }
         },
         onPrompt: async (prompt) => {
           const a = await text({ message: prompt.message });
           return isCancel(a) ? "" : (a as string);
         },
         onProgress: (msg) => { log.step(msg); },
+        onManualCodeInput: async () => {
+          const code = await text({
+            message: "Paste the authorization code (or full redirect URL)",
+            placeholder: "code=…",
+            validate: (v) => (v && v.trim().length > 0 ? undefined : "Code is required"),
+          });
+          if (isCancel(code)) { cancel("Setup cancelled."); process.exit(0); }
+          // Pass the raw user input through to pi-ai. Its parseAuthorizationInput
+          // handles every shape (URL, fragment, legacy "code#state", bare code),
+          // decodes malformed percent-escapes safely via URLSearchParams, and —
+          // most importantly — preserves the `state` parameter so it can be
+          // validated against the PKCE verifier (CSRF protection).
+          return (code as string).trim();
+        },
       });
       log.success(`Authenticated with ${providerInfo.label} via OAuth`);
     }

@@ -9,7 +9,7 @@
  *     In-flight jobs are NOT forcibly aborted — they run to completion.
  */
 
-import type { Agent } from "@mariozechner/pi-agent-core";
+import type { Agent } from "@earendil-works/pi-agent-core";
 import type { Logger } from "pino";
 import type { Runtime } from "../../runtime.js";
 import type { EventBus } from "../../bus/events.js";

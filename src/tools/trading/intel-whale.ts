@@ -2,14 +2,15 @@
  * Whale activity tool — top OI, volume, extreme funding, cluster detection.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { WhaleTrackingService } from "../../services/whale-tracking.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 import { formatUsd, formatPct } from "../../helpers/formatters.js";
 
-export function createWhaleActivityTool(whaleTracking: WhaleTrackingService): AnyAgentTool {
-  return {
+export function createWhaleActivityTool(whaleTracking: WhaleTrackingService): AgentTool {
+  return defineTool({
     name: "ghost_get_whale_activity",
     label: "Get Whale Activity",
     description: "Whale activity on Hyperliquid — top OI, volume, extreme funding, cluster detection. Pass symbol for detailed per-coin view.",
@@ -63,5 +64,5 @@ export function createWhaleActivityTool(whaleTracking: WhaleTrackingService): An
         return textResult(lines.join("\n"));
       } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
     },
-  };
+  });
 }

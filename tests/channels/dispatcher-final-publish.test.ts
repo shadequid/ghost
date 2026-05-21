@@ -22,7 +22,7 @@ import type { Orchestrator, PromptOptions, PromptResult } from "../../src/agent/
 import type { ToolRegistry } from "../../src/tools/registry.js";
 import type { PairingStore } from "../../src/pairing/store.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 
 // Stub pairing store — these tests do not exercise allowlist behavior.
 const STUB_PAIRING = {

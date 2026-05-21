@@ -6,7 +6,7 @@ import {
 } from "../../src/memory/consolidator.js";
 import { MemoryStore } from "../../src/memory/store.js";
 import { Session } from "../../src/session/session.js";
-import type { UserMessage, AssistantMessage, ToolCall, TextContent } from "@mariozechner/pi-ai";
+import type { UserMessage, AssistantMessage, ToolCall, TextContent } from "@earendil-works/pi-ai";
 import type { Runner } from "../../src/agent/runner.js";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";

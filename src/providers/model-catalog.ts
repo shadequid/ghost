@@ -2,7 +2,7 @@
  * Curated overlay of pi-ai's raw model catalog. Hides retired, deprecated,
  * and redundant-snapshot model IDs from every user-facing picker in Ghost.
  *
- * Maintenance: when bumping @mariozechner/pi-ai, re-verify each provider's
+ * Maintenance: when bumping @earendil-works/pi-ai, re-verify each provider's
  * retired list against its official deprecation page. Add a
  * `// verified: YYYY-MM-DD` comment next to each provider block so future
  * contributors know when it was last checked. Aggregator and no-schedule

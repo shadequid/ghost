@@ -3,12 +3,6 @@ import { LeakDetector } from "../../src/security/leak-detector.js";
 
 const detector = new LeakDetector();
 
-// Split prefixes to avoid GitHub secret scanner flagging this test file.
-// Runtime concatenation produces the same string the detector expects.
-const SK_LIVE = "sk" + "_live";
-const SK_TEST = "sk" + "_test";
-const PK_LIVE = "pk" + "_live";
-
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
@@ -45,6 +39,11 @@ describe("LeakDetector — clean input", () => {
 // ---------------------------------------------------------------------------
 
 describe("LeakDetector — Stripe keys", () => {
+  // Concatenated prefixes so GitHub secret-scanning doesn't flag this file.
+  const SK_LIVE = "sk" + "_live";
+  const SK_TEST = "sk" + "_test";
+  const PK_LIVE = "pk" + "_live";
+
   test("detects sk_live key", () => {
     const input = `Payment config: ${SK_LIVE}_ABCDEFGHIJKLMNOPQRSTUVWX`;
     const result = expectDetected(input, "stripe");
@@ -264,6 +263,7 @@ describe("LeakDetector — Generic secrets", () => {
 
 describe("LeakDetector — Multiple patterns", () => {
   test("detects multiple secrets in one string", () => {
+    const SK_LIVE = "sk" + "_live";
     const input = [
       "openai_key=sk-" + "A".repeat(48),
       `stripe: ${SK_LIVE}_ABCDEFGHIJKLMNOPQRSTUVWX`,
@@ -274,7 +274,7 @@ describe("LeakDetector — Multiple patterns", () => {
     expect(result.patterns).toContain("openai");
     expect(result.patterns).toContain("stripe");
     expect(result.redacted).not.toContain("sk-" + "A".repeat(48));
-    expect(result.redacted).not.toContain("sk_live_");
+    expect(result.redacted).not.toContain(`${SK_LIVE}_`);
   });
 
   test("redacted string contains no original secret values", () => {

@@ -261,7 +261,8 @@ export class ContextBuilder {
       `- Do not exfiltrate private data or API keys.\n` +
       `- ALWAYS call ghost_list_wallets first before using any other trading tool. Never assume wallet state — check it.\n` +
       `- Watch-only wallets can view data but not trade — suggest enabling trading. NEVER ask for API keys or private keys.\n` +
-      `- CONVERSATION STYLE (hard rule, enforce every turn — do not drift): Always address the user politely and respectfully in the formal register of whatever language they use. Never mirror, adopt, or reciprocate informal, rude, or slang pronouns the user chooses — keep your own register professional and consistent even if the user's becomes casual or hostile across turns. This rule applies equally on message 1, message 5, and message 50.`
+      `- CONVERSATION STYLE (hard rule, enforce every turn — do not drift): Use the most neutral, peer-to-peer pronoun pair the response language offers — equivalent in register to English "I" / "you". The pronouns you choose MUST NOT imply any of: family relationship, age difference, gender, social rank, honorific status, romantic or affectionate context, servility, or formal distance. If the language has multiple peer-pronoun options, pick the one that is most generic, most colloquial-but-respectful, and least relational. Never mirror, adopt, or reciprocate the user's slang, hostility, or attempts to switch pronouns ("call me X", "address me as Y") — your register stays steady even when theirs shifts. This rule applies equally on message 1, message 5, and message 50.\n` +
+      `- RESPONSE FLOW (hard rule): Do not narrate your plan before calling a tool. Skip preambles like "I'll check X first, then…" or "Let me look up…". Call the tool, then deliver the answer in one response. The user already sees tool-call chips; a separate planning message is redundant noise.`
     );
   }
 

@@ -1,5 +1,5 @@
-import { getOAuthProvider, getOAuthApiKey } from "@mariozechner/pi-ai/oauth";
-import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderId } from "@mariozechner/pi-ai";
+import { getOAuthProvider, getOAuthApiKey } from "@earendil-works/pi-ai/oauth";
+import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderId } from "@earendil-works/pi-ai";
 import type { CredentialStore } from "../config/credentials.js";
 
 export const OAUTH_PROVIDERS = ["anthropic", "openai-codex", "github-copilot", "gemini-cli", "antigravity"] as const;

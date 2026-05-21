@@ -1,8 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import pino from "pino";
-import { Type } from "@sinclair/typebox";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { TSchema } from "@mariozechner/pi-ai";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { TSchema } from "@earendil-works/pi-ai";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { assertExecution } from "../../src/eval/assertions.js";
 import type { Scenario } from "../../src/eval/scenario.js";

@@ -8,8 +8,8 @@
  */
 
 import { describe, test, expect } from "bun:test";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { TSchema } from "@sinclair/typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { TSchema } from "typebox";
 import type { ITradingClient } from "../../../src/services/interfaces/trading-client.js";
 import type { OpenOrder, CancelOrderResult } from "../../../src/services/interfaces/trading-types.js";
 import type { IWalletStore } from "../../../src/services/interfaces/wallet-store.js";

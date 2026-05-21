@@ -14,8 +14,8 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import type { Api, KnownProvider, Model, OpenAICompletionsCompat } from "@mariozechner/pi-ai";
-import { getProviders } from "@mariozechner/pi-ai";
+import type { Api, KnownProvider, Model, OpenAICompletionsCompat } from "@earendil-works/pi-ai";
+import { getProviders } from "@earendil-works/pi-ai";
 import { z } from "zod";
 import type { Logger } from "pino";
 
@@ -105,11 +105,9 @@ export function isOllamaEndpoint(baseUrl: string): boolean {
  * adds new built-ins.
  */
 export function getReservedProviderNames(): ReadonlySet<string> {
-  // Always include claude-cli + custom which Ghost surfaces in the wizard but
-  // aren't in pi-ai's registry. `custom` remains valid as a wizard selection,
-  // but users should pick a real provider name in models.json.
+  // Always include custom which Ghost surfaces in the wizard but isn't in
+  // pi-ai's registry. Users should pick a real provider name in models.json.
   const builtins = new Set<string>(getProviders());
-  builtins.add("claude-cli");
   builtins.add("custom");
   return builtins;
 }

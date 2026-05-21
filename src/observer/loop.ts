@@ -59,7 +59,7 @@ import { decidePnlDrift, type PnlDriftState } from "./pnl-drift.js";
 import type { ChatSnippet } from "../daemon/prompts/event-judge.js";
 import { dispatchOutbound, type OutboundChannel } from "../channels/index.js";
 import { ChannelId } from "../channels/types.js";
-import type { Message } from "@mariozechner/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
 
 const RECENT_CHAT_MAX = 20;
 

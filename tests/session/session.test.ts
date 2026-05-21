@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { Session } from "../../src/session/session.js";
-import type { Message, UserMessage, AssistantMessage, ToolResultMessage, ToolCall, TextContent } from "@mariozechner/pi-ai";
+import type { Message, UserMessage, AssistantMessage, ToolResultMessage, ToolCall, TextContent } from "@earendil-works/pi-ai";
 
 function userMsg(content: string): UserMessage {
   return { role: "user", content, timestamp: Date.now() };

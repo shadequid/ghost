@@ -14,8 +14,9 @@
  * into a single confirm card with two bullets.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { IWalletStore } from "../../services/interfaces/wallet-store.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -38,9 +39,9 @@ async function ensureCanWrite(hl: ITradingClient, walletStore: IWalletStore) {
 // Tools
 // ---------------------------------------------------------------------------
 
-export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): AnyAgentTool[] {
+export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_set_sl_tp",
       label: "Set SL/TP",
       description: "Set stop-loss and/or take-profit on an existing position. Creates fresh trigger order(s) — does NOT cancel any existing orders. To MOVE an existing SL or TP, emit two tool calls in the same response: `ghost_cancel_order(...)` for the old trigger followed by `ghost_set_sl_tp(...)` for the new one. The orchestrator batches them into one confirm card.",
@@ -71,8 +72,8 @@ export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): 
           return textResult(results.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_bracket_order",
       label: "Bracket Order",
       description: "Place entry + SL + TP in one action. Shows R:R ratio and risk amount.",
@@ -102,8 +103,8 @@ export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): 
           return textResult(`Bracket placed:\n  Entry: ${entry.status}${entry.avgFillPrice ? ` @ ${entry.avgFillPrice}` : ""}\n  Stop Loss: ${sl.status} @ ${formatUsd(params.stopLoss)}\n  Take Profit: ${tp.status} @ ${formatUsd(params.takeProfit)}\n  Risk Reward Ratio: 1 to ${risk > 0 ? (reward / risk).toFixed(1) : "∞"}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_partial_close",
       label: "Partial Close",
       description: "Close part of a position by percentage or size. Shows PnL on closed and remaining.",
@@ -128,8 +129,8 @@ export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): 
           return textResult(`Partial close: ${result.symbol} ${pct.toFixed(0)}% | ${result.status}${result.filledSize ? ` | Filled: ${result.filledSize}` : ""}\nRemaining: ~${remainSize.toFixed(4)}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_adjust_margin",
       label: "Adjust Margin",
       description: "Add or withdraw margin for an ISOLATED position. Fails on cross-margin positions — on cross, all positions share account equity, so per-position margin adjustment doesn't apply.",
@@ -156,6 +157,6 @@ export function createRiskTools(hl: ITradingClient, walletStore: IWalletStore): 
           return textResult(`Margin adjusted: ${action} ${formatUsd(Math.abs(params.amount))} for ${resolved}\nNew margin: ${newMargin} | New liq: ${newLiq}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
   ];
 }

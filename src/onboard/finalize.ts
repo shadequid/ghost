@@ -67,6 +67,10 @@ export async function finalizeOnboard(opts: FinalizeOptions): Promise<void> {
       if (isCancel(r)) return false;
       return r === true;
     },
+    // Re-onboard always means config just changed — always restart, never
+    // show a keep/reinstall/uninstall picker that could silently leave the
+    // daemon on the stale config.
+    forceChoice: "restart",
     alreadyInstalledChoice: async (msg) => {
       const r = await select({
         message: msg,

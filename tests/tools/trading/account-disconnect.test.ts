@@ -3,8 +3,8 @@
  */
 
 import { describe, test, expect } from "bun:test";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { TSchema } from "@sinclair/typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { TSchema } from "typebox";
 import type { HyperliquidClient } from "../../../src/services/live/client.js";
 import type { IWalletStore } from "../../../src/services/interfaces/wallet-store.js";
 import { createAccountTools } from "../../../src/tools/trading/account.js";

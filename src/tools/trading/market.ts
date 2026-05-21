@@ -2,8 +2,9 @@
  * Market data tools: price, funding, orderbook, klines
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { PriceCache } from "../../services/price-cache.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -12,9 +13,9 @@ import { formatUsd, formatPct } from "../../helpers/formatters.js";
 export function createMarketTools(
   hl: ITradingClient,
   priceCache: PriceCache,
-): AnyAgentTool[] {
+): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_get_price",
       label: "Get Price",
       description:
@@ -41,8 +42,8 @@ export function createMarketTools(
           ].join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_funding_rates",
       label: "Get Funding Rates",
       description: "Get current and historical funding rates for carry cost analysis.",
@@ -66,8 +67,8 @@ export function createMarketTools(
           return textResult(lines.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_orderbook",
       label: "Get Orderbook",
       description: "Get L2 orderbook depth with bid/ask imbalance analysis.",
@@ -91,8 +92,8 @@ export function createMarketTools(
           return textResult(lines.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_klines",
       label: "Get Klines",
       description: "Get OHLCV candlestick data for technical analysis.",
@@ -118,6 +119,6 @@ export function createMarketTools(
           return textResult(lines.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
   ];
 }

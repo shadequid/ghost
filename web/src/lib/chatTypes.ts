@@ -35,9 +35,9 @@ export interface ChatMessage {
   // type === 'action'
   actionData?: ActionCardData;
   actionStatus?: ActionCardStatus;
-  // Parsed <AskUserQuestion> block(s) extracted from assistant text.
-  // Rendered as AskCard(s) docked at the ChatInput slot; the source
-  // markup is stripped from `content` before render.
+  // Parsed <asks> block(s) extracted from assistant text. Rendered as
+  // AskCard(s) docked at the ChatInput slot; the source markup is
+  // stripped from `content` before render.
   askBlocks?: AskBlock[];
   // True once an AskCard from this message has been submitted (locks
   // every askBlock card on this message to prevent re-submission).
@@ -104,6 +104,15 @@ export function cleanDisplayText(text: string): string {
     .replace(/<\/?tool_(?:call|use|result)[^>]*>/g, '')
     // Remove tool call announcements like [ghost_bracket_order ...] or [mcp__ghost__ghost_bracket_order ...]
     .replace(/\[(?:mcp__ghost__)?ghost_\w+[^\]]*\]/g, '')
+    // Rewrite legacy ask wrapper to the canonical <asks> tag. CommonMark
+    // raw-HTML tokenization rejects underscored names, so the legacy form
+    // would otherwise leak as literal markup into reloaded message bubbles.
+    // The downstream markdown allow-list + passthrough components handle
+    // <asks> natively, so renaming here is sufficient.
+    .replace(
+      /<ask_user_question(\b[^>]*)>([\s\S]*?)<\/ask_user_question\s*>/gi,
+      '<asks$1>$2</asks>',
+    )
     .trim();
 }
 

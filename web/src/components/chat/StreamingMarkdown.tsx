@@ -96,6 +96,22 @@ const ALLOWED_TAGS = {
   chart: ['symbol', 'interval', 'indicators', 'levels', 'focus-time', 'focus-price'],
   ind: ['name'],
   lvl: ['price'],
+  // Ask-wizard block tags. Without these, rehype-sanitize escapes the
+  // unknown elements to literal text — the raw `<asks>` wrapper leaks
+  // into every render path that doesn't pre-process content (chat.delta
+  // streaming, chat.done !sid branch, chat.proactive, approval-requested
+  // pre-text, historyToMessages reload). Registering them here + a
+  // passthrough component (see askPassthroughComponents) lets the parser
+  // tokenize the tags and then strip just the wrapper while keeping the
+  // inner prose visible. NOTE: tag name was `ask_user_question`
+  // originally but CommonMark raw-HTML tag names disallow underscores —
+  // remark refused to tokenize it so this registration had no effect.
+  // The rename to `asks` lets the markdown parser recognise the tag.
+  asks: [],
+  question: [],
+  title: [],
+  options: [],
+  option: [],
 };
 
 const tradingComponents = {
@@ -140,6 +156,23 @@ const tradingComponents = {
   ),
 };
 
+/* ── Ask-wizard block: hide entirely in the bubble ──
+ *  AskCard renders the wizard from `askBlocks` at the ChatInput dock —
+ *  showing the same text inline would duplicate. */
+
+// Bubble shows the agent's questions (title text) but NOT the option
+// buttons — those are rendered as interactive buttons by AskCard at the
+// ChatInput dock. `asks` / `question` / `title` render their children
+// as a fragment so the title text stays visible; `options` / `option`
+// return `null` so the option labels do not duplicate as inline prose.
+const askPassthroughComponents = {
+  asks: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  question: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  title: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  options: () => null,
+  option: () => null,
+};
+
 /* ── Table components ── */
 
 const tableComponents = {
@@ -166,6 +199,7 @@ const plugins = { code };
 
 const mdComponents = {
   ...tradingComponents,
+  ...askPassthroughComponents,
   ...tableComponents,
 };
 

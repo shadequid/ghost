@@ -63,16 +63,6 @@ export function getEvalConfigPath(): string {
   return join(getGhostDir(), "eval.json");
 }
 
-/** Claude CLI workspace directory for CLAUDE.md and skills. */
-export function getCliWorkspacePath(): string {
-  return join(getGhostDir(), "cli-workspace");
-}
-
-/** Path to CLI handoff state file. */
-export function getCliHandoffPath(): string {
-  return join(getWorkspaceDir(), "cli-handoff.json");
-}
-
 /** Path to daemon PID file. Written on startup, deleted on clean shutdown. */
 export function getDaemonPidPath(): string {
   return join(getGhostDir(), "daemon.pid");

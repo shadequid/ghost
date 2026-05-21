@@ -17,8 +17,9 @@
  * are not user intent.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { OrderRecord } from "../../services/interfaces/trading-types.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -45,9 +46,9 @@ function isEngineDriven(o: OrderRecord): boolean {
   return ENGINE_DRIVEN_STATUSES.includes(o.status);
 }
 
-export function createRecentOrdersTools(hl: ITradingClient): AnyAgentTool[] {
+export function createRecentOrdersTools(hl: ITradingClient): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_get_recent_orders",
       label: "Get Recent Orders",
       description:
@@ -113,6 +114,6 @@ export function createRecentOrdersTools(hl: ITradingClient): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

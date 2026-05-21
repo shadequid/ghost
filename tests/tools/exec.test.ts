@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import type { TextContent } from "@mariozechner/pi-ai";
+import type { TextContent } from "@earendil-works/pi-ai";
 import { ExecTool } from "../../src/tools/exec.js";
 
 const text = (r: { content: { type: string; text?: string }[] }) =>

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
-import { DB_MIGRATIONS } from "../../src/core/migrations/registry.js";
+import { DB_MIGRATIONS, CONFIG_MIGRATIONS } from "../../src/core/migrations/registry.js";
 import { createRuntime } from "../../src/runtime.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
 
@@ -80,12 +80,13 @@ describe("createRuntime() migration wiring", () => {
 
     const runtime = await createRuntime({ configPath, logger: NOOP_LOGGER });
     try {
-      // schemaVersion is set to the latest migration version after running
-      expect(runtime.config.schemaVersion).toBeGreaterThanOrEqual(2);
-      // File must be updated since migrations ran.
-      const saved = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
-      expect(typeof saved["schemaVersion"]).toBe("number");
-      expect((saved["schemaVersion"] as number)).toBeGreaterThanOrEqual(2);
+      const latest = CONFIG_MIGRATIONS.reduce((max, m) => Math.max(max, m.version), 1);
+      expect(runtime.config.schemaVersion).toBe(latest);
+      if (CONFIG_MIGRATIONS.length > 0) {
+        // Migrations ran → file rewritten with schemaVersion.
+        const saved = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
+        expect(saved["schemaVersion"]).toBe(latest);
+      }
     } finally {
       runtime.db.close();
     }

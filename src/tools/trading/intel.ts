@@ -5,8 +5,9 @@
  * tools have a single canonical home.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { IntelService } from "../../services/intel.js";
 import type { SessionManager } from "../../session/manager.js";
@@ -36,10 +37,10 @@ export interface IntelToolsDeps {
   cronService: CronService;
 }
 
-export function createIntelTools(deps: IntelToolsDeps): AnyAgentTool[] {
+export function createIntelTools(deps: IntelToolsDeps): AgentTool[] {
   const { hl, intel, sessionManager } = deps;
   return [
-    {
+    defineTool({
       name: "ghost_market_overview",
       label: "Market Overview",
       description: "Composite market overview: Fear & Greed, market cap, TVL, trending, stablecoins.",
@@ -49,8 +50,8 @@ export function createIntelTools(deps: IntelToolsDeps): AnyAgentTool[] {
           return textResult(JSON.stringify(await intel.getOverview(), null, 2));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_pre_trade_check",
       label: "Pre-Trade Check",
       description: "Pre-trade advisory: timing risk, funding, OI, orderbook, sentiment analysis before trading.",
@@ -109,7 +110,7 @@ export function createIntelTools(deps: IntelToolsDeps): AnyAgentTool[] {
           return textResult([`Pre-Trade Check: ${params.side.toUpperCase()} ${resolved}`, `Risk Level: ${level} (${riskScore}/6)`, "─".repeat(40), ...factors].join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
     // ghost_session_info: required by proactive-advisor and briefing skills (idle-gate step 1).
     createSessionInfoTool(sessionManager),
     // ghost_chat_history: gives proactive-advisor on-demand access to recent user statements

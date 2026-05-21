@@ -2,16 +2,17 @@
  * Morning briefing tool — manage scheduled daily briefing.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { CronService } from "../../scheduler/service.js";
 import { textResult, errorResult } from "../../helpers/result.js";
 import { BRIEFING_PROMPT } from "../../scheduler/defaults.js";
 
 const BRIEFING_JOB_NAME = "morning-briefing";
 
-export function createMorningBriefingTool(cronService: CronService): AnyAgentTool {
-  return {
+export function createMorningBriefingTool(cronService: CronService): AgentTool {
+  return defineTool({
     name: "ghost_morning_briefing",
     label: "Morning Briefing Schedule",
     description: "Manage scheduled morning briefing. Enable/disable/set time for daily auto-briefing.",
@@ -106,5 +107,5 @@ export function createMorningBriefingTool(cronService: CronService): AnyAgentToo
         return errorResult(e instanceof Error ? e.message : String(e));
       }
     },
-  };
+  });
 }

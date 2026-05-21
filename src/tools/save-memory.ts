@@ -1,7 +1,7 @@
 /** SaveMemoryTool — persists memory consolidation results to HISTORY.md + MEMORY.md. */
 
-import { Type, type Static } from "@mariozechner/pi-ai";
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import { Type, type Static } from "@earendil-works/pi-ai";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { MemoryStore } from "../memory/store.js";
 
 const SaveMemorySchema = Type.Object({

@@ -22,14 +22,13 @@
  * so scheduled responses appear in the user's main chat history.
  */
 
-import type { Agent } from "@mariozechner/pi-agent-core";
-import type { Message } from "@mariozechner/pi-ai";
+import type { Agent } from "@earendil-works/pi-agent-core";
+import type { Message } from "@earendil-works/pi-ai";
 import type { Logger } from "pino";
 import type { SessionManager } from "../session/manager.js";
 import { MAIN_SESSION_KEY } from "../session/session.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import { isOriginAware } from "../tools/context-aware.js";
-import { agentRunContext } from "./run-context.js";
 
 export interface RunnerCallOpts {
   systemPrompt: string;
@@ -91,12 +90,7 @@ export class Runner {
       this.agent.state.systemPrompt = opts.systemPrompt;
       this.agent.state.messages = [];
 
-      // Mark this call as task-kind so the claude-cli stream can run it
-      // ephemerally (persistSession: false), keeping the main user session
-      // untouched. Non-claude-cli providers ignore the ALS store.
-      await agentRunContext.run({ kind: "task" }, () =>
-        this.agent.prompt(opts.message),
-      );
+      await this.agent.prompt(opts.message);
 
       const finalText = extractFinalAssistantText(this.agent.state.messages);
 

@@ -247,11 +247,11 @@ export const DB_MIGRATIONS: ReadonlyArray<Migration<Database>> = [
 // Config migrations
 // ---------------------------------------------------------------------------
 //
-// No config migrations currently registered. When the schema drops a field
-// (e.g. `channels`, `gateway.pairedTokens`), Zod's default `.strip()` removes
-// unknown keys at parse time — a migration step is redundant for pure deletes.
-// Add a migration here ONLY when (a) renaming a field requires lifting old
-// values, or (b) reshaping nested data that Zod cannot transparently coerce.
+// Zod's default `.strip()` removes unknown keys at parse time, so pure field
+// deletions are handled transparently and do not need migrations. Add entries
+// here only when (a) renaming a field requires lifting old values, (b)
+// reshaping nested data that Zod cannot transparently coerce, or (c) a nested
+// block must be explicitly deleted before Zod sees the config.
 
 export const CONFIG_MIGRATIONS: ReadonlyArray<Migration<Config>> = [];
 

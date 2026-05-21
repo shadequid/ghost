@@ -6,9 +6,10 @@
  * thesis and Ghost's prior recommendations when framing divergence.
  */
 
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { SessionManager } from "../../session/manager.js";
-import type { AnyAgentTool } from "./types.js";
+import { defineTool } from "./types.js";
 import { MAIN_SESSION_KEY } from "../../session/session.js";
 import { textResult } from "../../helpers/result.js";
 
@@ -18,8 +19,8 @@ const MAX_LOOKBACK_HOURS = 720;       // 30 days cap so callers can't blow up th
 const MAX_MESSAGES = 200;             // runtime safety cap — agent picks its own count within this
 const TEXT_TRIM = 500;                // per-message character cap to keep output bounded
 
-export function createChatHistoryTool(sessionManager: SessionManager): AnyAgentTool {
-  return {
+export function createChatHistoryTool(sessionManager: SessionManager): AgentTool {
+  return defineTool({
     name: "ghost_chat_history",
     label: "Chat History",
     description:
@@ -88,7 +89,7 @@ export function createChatHistoryTool(sessionManager: SessionManager): AnyAgentT
       collected.reverse();  // restore chronological order for readability
       return textResult(collected.join("\n---\n"));
     },
-  };
+  });
 }
 
 // UserMessage.content is string; AssistantMessage.content is (TextContent | ToolCall)[].

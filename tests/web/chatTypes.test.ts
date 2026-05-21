@@ -50,3 +50,36 @@ describe("cleanDisplayText — tool-leak strips", () => {
     expect(cleanDisplayText(input)).toBe('BTC bullish <chart symbol="BTC" />');
   });
 });
+
+describe("cleanDisplayText — legacy ask wrapper rename", () => {
+  test("rewrites <ask_user_question> open/close to <asks>", () => {
+    const input = "<ask_user_question><question><title>Long or short?</title></question></ask_user_question>";
+    expect(cleanDisplayText(input)).toBe(
+      "<asks><question><title>Long or short?</title></question></asks>",
+    );
+  });
+
+  test("preserves attributes on the legacy wrapper", () => {
+    const input = '<ask_user_question id="x"><question><title>Q?</title></question></ask_user_question>';
+    expect(cleanDisplayText(input)).toBe(
+      '<asks id="x"><question><title>Q?</title></question></asks>',
+    );
+  });
+
+  test("leaves the canonical <asks> tag untouched", () => {
+    const input = "<asks><question><title>Size?</title></question></asks>";
+    expect(cleanDisplayText(input)).toBe(input);
+  });
+
+  test("handles legacy wrapper alongside surrounding prose", () => {
+    const input = "Lead-in.\n<ask_user_question><question><title>Q?</title></question></ask_user_question>";
+    expect(cleanDisplayText(input)).toBe(
+      "Lead-in.\n<asks><question><title>Q?</title></question></asks>",
+    );
+  });
+
+  test("does not rewrite unpaired legacy tags (symmetric match)", () => {
+    const input = "stray <ask_user_question> open with no close";
+    expect(cleanDisplayText(input)).toBe(input);
+  });
+});

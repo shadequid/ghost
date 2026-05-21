@@ -13,7 +13,7 @@
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import pino from "pino";
-import { getModel, type Model, type Api, type KnownProvider } from "@mariozechner/pi-ai";
+import { getModel, type Model, type Api, type KnownProvider } from "@earendil-works/pi-ai";
 import { loadCustomModelRegistry } from "../providers/models-config.js";
 import { getModelsConfigPath, getCredentialsPath, getSecretKeyPath } from "../config/paths.js";
 import { OAuthManager } from "../auth/oauth.js";

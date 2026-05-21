@@ -2,14 +2,15 @@
  * Liquidation map tool — estimate liquidation concentration zones.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { LiquidationMapService } from "../../services/liquidation-map.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 import { formatUsd } from "../../helpers/formatters.js";
 
-export function createLiquidationMapTool(liquidationMap: LiquidationMapService): AnyAgentTool {
-  return {
+export function createLiquidationMapTool(liquidationMap: LiquidationMapService): AgentTool {
+  return defineTool({
     name: "ghost_liquidation_map",
     label: "Liquidation Map",
     description: "Estimate liquidation concentration zones based on common leverage tiers. Shows where liquidations cluster above and below current price.",
@@ -49,5 +50,5 @@ export function createLiquidationMapTool(liquidationMap: LiquidationMapService):
         return textResult(lines.join("\n"));
       } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
     },
-  };
+  });
 }

@@ -9,18 +9,13 @@ import {
   getDbPath,
   getSecretKeyPath,
   getCredentialsPath,
-  getCliWorkspacePath,
-  getCliHandoffPath,
   getModelsConfigPath,
 } from "./config/paths.js";
-import { createClaudeCliProvider } from "./providers/claude-cli/index.js";
 import {
   loadCustomModelRegistry,
   shouldForceThinkingOff,
   type CustomModelRegistry,
 } from "./providers/models-config.js";
-import { createClaudeCliModel } from "./providers/claude-cli/models.js";
-import { CliHandoffStore } from "./providers/claude-cli/handoff-store.js";
 import { CredentialStore } from "./config/credentials.js";
 import { SecretStore } from "./config/secrets.js";
 import { initDatabase } from "./core/database.js";
@@ -34,7 +29,7 @@ import { SessionManager } from "./session/manager.js";
 import { SecurityPolicy } from "./security/policy.js";
 import { LeakDetector } from "./security/leak-detector.js";
 import { createToolRegistry } from "./tools/index.js";
-import { Agent } from "@mariozechner/pi-agent-core";
+import { Agent } from "@earendil-works/pi-agent-core";
 import type {
   BeforeToolCallContext,
   BeforeToolCallResult,
@@ -42,9 +37,9 @@ import type {
   AfterToolCallResult,
   AgentOptions,
   AgentMessage,
-} from "@mariozechner/pi-agent-core";
-import type { TextContent, Model, Api } from "@mariozechner/pi-ai";
-import { getModel, type KnownProvider } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-agent-core";
+import type { TextContent, Model, Api } from "@earendil-works/pi-ai";
+import { getModel, type KnownProvider } from "@earendil-works/pi-ai";
 import { ContextBuilder } from "./agent/context-builder.js";
 import { SkillsLoader } from "./skills/index.js";
 import { SkillService } from "./services/skill-service.js";
@@ -485,22 +480,6 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   // Runner re-applies the same filter per call (see src/agent/runner.ts).
   taskAgent.state.tools = tools.taskAgentTools();
 
-  // Build claude-cli provider after tools + confirmService exist — the MCP
-  // server captures the tool list at construction time.
-  setupClaudeCliProvider({
-    config,
-    logger,
-    builtinSkillsDir,
-    userSkillsDir: expandHome(config.skills.skillsDir),
-    buildCliSystemPrompt: () => contextBuilder.buildCliSystemPrompt(),
-    getDisabledSkills: skillService ? () => skillService.getDisabledNames() : undefined,
-    tools,
-    confirmService,
-    eventBus,
-    security,
-    leakDetector,
-  });
-
   // Wallet readiness — tracks startup connect; daemon awaits before app.listen
   const walletReady: Promise<void> = walletStore
     .load()
@@ -746,20 +725,10 @@ export function buildAgentOptions(
     initialState: {
       systemPrompt,
       model,
-      // claude-cli: pi-agent must not invoke tools directly — the SDK provider's
-      // stream() runs its own agent loop via query() which drives the in-process
-      // MCP server. Passing tools.all() here would cause pi-agent to also attempt
-      // tool calls, resulting in double-invocation and broken execution semantics.
-      tools: config.provider === "claude-cli"
-        ? []
-        : taskMode
-          ? tools.taskAgentTools()
-          : tools.all(),
+      tools: taskMode ? tools.taskAgentTools() : tools.all(),
       thinkingLevel: effectiveThinkingLevel,
     },
-    getApiKey: config.provider === "claude-cli"
-      ? async () => "claude-cli-no-key-needed"
-      : getApiKey(oauthManager, credentials, customModelRegistry),
+    getApiKey: getApiKey(oauthManager, credentials, customModelRegistry),
     beforeToolCall: makeBeforeToolCall(
       security,
       config.agent.maxToolIterations,
@@ -782,59 +751,11 @@ function resolveProvider(
   config: Config,
   customModelRegistry: CustomModelRegistry,
 ): Model<Api> | null {
-  if (config.provider === "claude-cli") {
-    return createClaudeCliModel(config.claudeCli.model);
-  }
   // Try the custom registry first — users can define Ollama / vLLM / LM Studio
   // endpoints in ~/.ghost/models.json without modifying Ghost code.
   const custom = customModelRegistry.find(config.provider, config.model);
   if (custom) return custom;
   return getModel(config.provider as KnownProvider, config.model as never) ?? null;
-}
-
-interface ClaudeCliSetupArgs {
-  config: Config;
-  logger: Logger;
-  builtinSkillsDir: string | undefined;
-  userSkillsDir: string;
-  buildCliSystemPrompt: () => string;
-  getDisabledSkills?: () => Set<string>;
-  tools: ToolRegistry;
-  confirmService: ConfirmService;
-  eventBus: EventBus;
-  security: SecurityPolicy;
-  leakDetector: LeakDetector;
-}
-
-/**
- * Build, register, and prepare the workspace for the claude-cli provider
- * when the active config selects it. No-op for other providers.
- */
-function setupClaudeCliProvider(args: ClaudeCliSetupArgs): void {
-  if (args.config.provider !== "claude-cli") return;
-  const cliLogger = args.logger.child({ module: "claude-cli" });
-  const handoffStore = new CliHandoffStore(
-    getCliHandoffPath(),
-    args.logger.child({ module: "cli-handoff" }),
-  );
-  const provider = createClaudeCliProvider({
-    model: args.config.claudeCli.model,
-    permissionMode: args.config.claudeCli.permissionMode,
-    workspacePath: getCliWorkspacePath(),
-    builtinSkillsDir: args.builtinSkillsDir,
-    userSkillsDir: args.userSkillsDir,
-    buildCliSystemPrompt: args.buildCliSystemPrompt,
-    getDisabledSkills: args.getDisabledSkills,
-    handoffStore,
-    logger: cliLogger,
-    tools: args.tools,
-    confirmService: args.confirmService,
-    eventBus: args.eventBus,
-    security: args.security,
-    leakDetector: args.leakDetector,
-  });
-  provider.register();
-  provider.setupWorkspace(args.buildCliSystemPrompt());
 }
 
 // ---------------------------------------------------------------------------

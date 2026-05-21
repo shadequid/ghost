@@ -144,7 +144,7 @@ export const AskCard = memo(function AskCard({ block, onSubmit, onDismiss }: Ask
       aria-live="polite"
       onKeyDown={onKeyDown}
     >
-      {/* Header row: left column (pagination + title + suggestion) | right X */}
+      {/* Header row: left column (pagination + title) | right X */}
       <div className="flex items-start justify-between w-full">
         <div className="flex flex-1 flex-col gap-2 justify-center min-w-0">
           <div className="flex items-center justify-between w-[87px]">

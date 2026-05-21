@@ -11,7 +11,7 @@ import type { BackgroundJob, JobContext, JobResult } from "../../../src/daemon/j
 import type { Logger } from "pino";
 import type { Runtime } from "../../../src/runtime.js";
 import type { EventBus } from "../../../src/bus/events.js";
-import type { Agent } from "@mariozechner/pi-agent-core";
+import type { Agent } from "@earendil-works/pi-agent-core";
 import type { Runner } from "../../../src/agent/runner.js";
 import type { Config } from "../../../src/config/schema.js";
 

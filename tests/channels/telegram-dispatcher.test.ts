@@ -22,7 +22,7 @@ import type { ApprovalManager } from "../../src/gateway/approval.js";
 import type { Orchestrator, PromptOptions } from "../../src/agent/orchestrator.js";
 import type { ToolRegistry } from "../../src/tools/registry.js";
 import type { PairingService } from "../../src/pairing/service.js";
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { makeNoopServices } from "../helpers/telegram.js";
 
 // ---------------------------------------------------------------------------

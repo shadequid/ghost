@@ -156,15 +156,19 @@ export function stripCustomTags(text: string): string {
   // mid-paragraph (no preceding newline) are intentionally left unchanged.
   out = out.replace(/(\n)(\x00I_OPEN\x00(?:🐂 |🐻 |〰️ )?)/g, "$1\n$2");
 
-  // <AskUserQuestion>…</AskUserQuestion> — wizard ask block. Web
-  // renders this as an interactive card; Telegram has no inline card
-  // affordance, so we flatten it into a numbered question list with a
-  // hint about the expected reply shape. The trade-executor skill
-  // commits the agent to plain `<title> = <answer>` lines, one per
-  // question, on either channel.
+  // <asks>…</asks> — wizard ask block. Web renders this as an interactive
+  // card; Telegram has no inline card affordance, so we flatten it into a
+  // numbered question list with a hint about the expected reply shape.
+  // The trade-executor skill commits the agent to plain `<title> = <answer>`
+  // lines, one per question, on either channel.
+  //
+  // Legacy `<ask_user_question>` is still accepted — CommonMark raw-HTML
+  // disallows underscores so the web markdown parser couldn't tokenize it,
+  // but Telegram strips tags directly and older streams or model
+  // hallucinations can still emit this form.
   out = out.replace(
-    /<ask_user_question\s*>([\s\S]*?)<\/ask_user_question>/gi,
-    (_full, inner: string) => formatAskFallback(inner),
+    /<(asks|ask_user_question)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi,
+    (_full, _tag: string, inner: string) => formatAskFallback(inner),
   );
 
   // <chart symbol="X" interval="Y" ... /> — emit a footer hint instead of
@@ -204,9 +208,9 @@ export function stripCustomTags(text: string): string {
 }
 
 /**
- * Render the inner of a `<AskUserQuestion>…</AskUserQuestion>` block
- * as a numbered Q list for Telegram. Only titles are shown — options
- * are intentionally omitted to keep the chat output compact.
+ * Render the inner of an `<asks>…</asks>` block as a numbered Q list for
+ * Telegram. Only titles are shown — options are intentionally omitted to
+ * keep the chat output compact.
  */
 function formatAskFallback(inner: string): string {
   const questionRe = /<question>([\s\S]*?)<\/question>/gi;

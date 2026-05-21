@@ -3,8 +3,9 @@
  * Wallet stored in SQLite (brain.db) via WalletStore (encrypted)
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { IWalletStore } from "../../services/interfaces/wallet-store.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -34,9 +35,9 @@ export function createAccountTools(
   walletStore: IWalletStore,
   saveWalletConfig?: (address: string, privateKey: string, testnet: boolean) => Promise<void>,
   disconnectWallet?: () => Promise<{ address: string } | null>,
-): AnyAgentTool[] {
+): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_connect_wallet",
       label: "Connect Wallet",
       description:
@@ -70,8 +71,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_balance",
       label: "Get Balance",
       description: "Get portfolio balance: equity, available margin, margin used, unrealized PnL. Optionally specify a wallet address.",
@@ -94,8 +95,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_positions",
       label: "Get Positions",
       description: "Get all open positions with entry, mark, liq price, PnL, leverage. Optionally specify a wallet address.",
@@ -112,8 +113,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_orders",
       label: "Get Open Orders",
       description: "Get all pending orders with type, price, size, and trigger conditions. Optionally specify a wallet address.",
@@ -140,8 +141,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_disconnect_wallet",
       label: "Disconnect Wallet",
       description:
@@ -180,8 +181,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_list_wallets",
       label: "List Wallets",
       description: "List all connected wallets with address, status (watch/trading), and default flag.",
@@ -203,8 +204,8 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_set_default_wallet",
       label: "Set Default Wallet",
       description: "Set a wallet as the default for trading. Wallet must have trading enabled (API wallet connected).",
@@ -227,6 +228,6 @@ export function createAccountTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

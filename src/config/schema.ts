@@ -137,18 +137,6 @@ export const observerSchema = z.object({
   liquidationProgressThreshold: z.coerce.number().min(0.1).max(0.99).default(0.8),
 });
 
-export const claudeCliSchema = z.object({
-  /** Claude model alias or specific model ID. */
-  model: z.string().default("sonnet"),
-  /**
-   * Permission mode passed to the Claude Agent SDK query() call.
-   * Defaults to "bypassPermissions" because Ghost enforces its own security
-   * via the MCP layer (SecurityPolicy + LeakDetector + confirmation flow).
-   * Valid values align with the SDK's PermissionMode union.
-   */
-  permissionMode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]).default("bypassPermissions"),
-}).default({});
-
 // ---------------------------------------------------------------------------
 // Top-level config schema
 // ---------------------------------------------------------------------------
@@ -183,7 +171,6 @@ export const configSchema = z.object({
   priceFeed: priceFeedSchema.default({}),
   /** Verbosity level: 0=info, 1=debug (-v), 2=trace (-vv). */
   verbosity: z.coerce.number().int().min(0).max(2).default(0).transform((v) => v as 0 | 1 | 2),
-  claudeCli: claudeCliSchema.default({}),
   observer: observerSchema.default({}),
 });
 
@@ -201,5 +188,4 @@ export type SkillsConfig = z.infer<typeof skillsSchema>;
 export type SecretsConfig = z.infer<typeof secretsSchema>;
 export type PaperConfig = z.infer<typeof paperSchema>;
 export type PriceFeedConfig = z.infer<typeof priceFeedSchema>;
-export type ClaudeCliConfig = z.infer<typeof claudeCliSchema>;
 export type ObserverConfig = z.infer<typeof observerSchema>;

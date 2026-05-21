@@ -3,7 +3,7 @@
  * Services return Result<T>, tool handlers convert to pi-agent-core format.
  */
 
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 
 export type Result<T, E = string> =
   | { ok: true; value: T }

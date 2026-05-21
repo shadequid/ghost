@@ -7,8 +7,8 @@
  * assistant message.
  */
 
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
-import type { AnyAgentTool } from "./types.js";
 import type { IntelService } from "../../services/intel.js";
 import type { WatchlistService } from "../../services/watchlist.js";
 import type { AlertRulesService } from "../../services/alert-rules.js";
@@ -75,7 +75,7 @@ export interface TradingToolsDeps {
   configPath: string;
 }
 
-export function createAllTradingTools(deps: TradingToolsDeps): AnyAgentTool[] {
+export function createAllTradingTools(deps: TradingToolsDeps): AgentTool[] {
   return [
     ...createAccountTools(deps.hl, deps.walletStore, deps.saveWalletConfig, deps.disconnectWallet),
     ...createOrderTools(deps.hl, deps.walletStore),

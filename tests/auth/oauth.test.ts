@@ -2,13 +2,13 @@ import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, statSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
+import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { SecretStore } from "../../src/config/secrets.js";
 import { CredentialStore } from "../../src/config/credentials.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
 
 // ---------------------------------------------------------------------------
-// Mock @mariozechner/pi-ai OAuth functions
+// Mock @earendil-works/pi-ai OAuth functions
 // Must be declared before any import of modules that use pi-ai
 // ---------------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ const mockGetOAuthProvider = mock((_id: string) => ({
 
 
 // Mock the oauth sub-path used by OAuthManager
-mock.module("@mariozechner/pi-ai/oauth", () => ({
+mock.module("@earendil-works/pi-ai/oauth", () => ({
   getOAuthProvider: mockGetOAuthProvider,
   getOAuthApiKey: async (providerId: string, credentials: Record<string, OAuthCredentials>) =>
     mockGetOAuthApiKeyImpl(providerId, credentials),

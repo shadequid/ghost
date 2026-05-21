@@ -726,3 +726,41 @@ describe("formatWithCharts — formatter method", () => {
     expect(out).toBe("\n📊 BTC 4h chart");
   });
 });
+
+describe("formatForTelegram — <asks> wizard block fallback", () => {
+  const askBlock = [
+    "<asks>",
+    "  <question><title>Long or short?</title></question>",
+    "  <question><title>Size (USDC)?</title></question>",
+    "</asks>",
+  ].join("\n");
+
+  const legacyBlock = [
+    "<ask_user_question>",
+    "  <question><title>Long or short?</title></question>",
+    "  <question><title>Size (USDC)?</title></question>",
+    "</ask_user_question>",
+  ].join("\n");
+
+  test("current <asks> tag flattens into a numbered question list", () => {
+    const out = formatter.format(askBlock);
+    expect(out).toContain("1. Long or short?");
+    expect(out).toContain("2. Size (USDC)?");
+    expect(out).not.toContain("<asks");
+    expect(out).not.toContain("<question>");
+  });
+
+  test("legacy <ask_user_question> tag flattens identically", () => {
+    const out = formatter.format(legacyBlock);
+    expect(out).toContain("1. Long or short?");
+    expect(out).toContain("2. Size (USDC)?");
+    expect(out).not.toContain("ask_user_question");
+    expect(out).not.toContain("<question>");
+  });
+
+  test("mismatched open/close tags do not match (backref keeps them symmetric)", () => {
+    const mismatched = "<asks><question><title>X</title></question></ask_user_question>";
+    const out = formatter.format(mismatched);
+    expect(out).not.toContain("1. X");
+  });
+});

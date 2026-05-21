@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { createSessionInfoTool } from "../../../src/tools/trading/intel-session";
 import { Session } from "../../../src/session/session";
-import type { UserMessage, AssistantMessage, TextContent } from "@mariozechner/pi-ai";
+import type { UserMessage, AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 
 function makeSessionManager(session: Session) {
   return { getOrCreate: () => session } as any;

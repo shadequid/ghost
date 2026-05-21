@@ -8,7 +8,7 @@
  * reads channel instances via manager.getChannel() — no local channels map.
  */
 
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { MessageBus } from "../bus/queue.js";
 import type { InboundMessage, OutboundMessage } from "../bus/types.js";
 import type { Orchestrator } from "../agent/orchestrator.js";
@@ -118,9 +118,8 @@ export class MessageDispatcher {
       //   narration is dropped on tool end (buffer.length = 0) as in streaming
       //   mode. No per-delta publishes; the channel never sees sendDelta.
       //
-      // toolcall_end handles the claude-cli provider: the in-process MCP executor
-      // does not emit tool_execution_start/end, so toolcall_end is the synthetic
-      // signal that arms acceptDelta.
+      // toolcall_end is the synthetic signal that arms acceptDelta for
+      // providers whose tool executors don't emit tool_execution_start/end.
       const buffer: string[] = [];
       let acceptDelta = false;   // true once a tool has finished — real response incoming
       let streaming = false;     // streaming channel only: true once post-tool delta started
