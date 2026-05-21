@@ -63,8 +63,11 @@ describe("isReservedProviderName (single source of truth)", () => {
   });
 
   test("rejects ghost-special reserved names", () => {
-    expect(isReservedProviderName("claude-cli")).toBe(true);
     expect(isReservedProviderName("custom")).toBe(true);
+  });
+
+  test("claude-cli is no longer reserved (provider removed)", () => {
+    expect(isReservedProviderName("claude-cli")).toBe(false);
   });
 
   test("accepts distinct custom names", () => {

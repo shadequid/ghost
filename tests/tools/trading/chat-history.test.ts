@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import type { Message, UserMessage, AssistantMessage } from "@mariozechner/pi-ai";
+import type { Message, UserMessage, AssistantMessage } from "@earendil-works/pi-ai";
 import { createChatHistoryTool } from "../../../src/tools/trading/chat-history.js";
 import type { SessionManager } from "../../../src/session/manager.js";
 

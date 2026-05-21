@@ -2,15 +2,16 @@
  * History tools: trade history
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 import { formatUsd, formatPnl } from "../../helpers/formatters.js";
 
-export function createHistoryTools(hl: ITradingClient): AnyAgentTool[] {
+export function createHistoryTools(hl: ITradingClient): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_get_trade_history",
       label: "Get Trade History",
       description: "Get closed trades with entry/exit price, PnL, fees. Decide which mode fits the user's ask: (a) recent N trades — pass `limit` (default 20). (b) trades within a time window — pass `lookbackHours` (e.g. 168 for 'last week') OR `startTime`/`endTime` (Unix ms). Time-range mode returns ALL fills in the window; do not combine with `limit`. Optional `symbol` filters client-side.",
@@ -67,6 +68,6 @@ export function createHistoryTools(hl: ITradingClient): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

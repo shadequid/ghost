@@ -16,7 +16,7 @@
  * override based on the full trace.
  */
 
-import { Value } from "@sinclair/typebox/value";
+import { Value } from "typebox/value";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { Scenario } from "./scenario.js";
 import type { ExecutionResult } from "./judge.js";

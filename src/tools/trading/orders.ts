@@ -9,8 +9,9 @@
  * `services/confirm-policy.ts`. The agent does NOT author confirm cards.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { IWalletStore } from "../../services/interfaces/wallet-store.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -35,9 +36,9 @@ async function ensureCanWrite(hl: ITradingClient, walletStore: IWalletStore) {
 // Tools
 // ---------------------------------------------------------------------------
 
-export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore): AnyAgentTool[] {
+export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_place_order",
       label: "Place Order",
       description: "Place a market or limit order on Hyperliquid. Requires wallet connected.",
@@ -65,8 +66,8 @@ export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore
           return textResult(`Order submitted: ${result.status} | ${result.symbol} ${result.side}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_set_leverage",
       label: "Set Leverage",
       description: "Set leverage and margin mode for a symbol. Executes immediately without a confirm card — leverage is an account setting that does not by itself open or close a position.",
@@ -82,8 +83,8 @@ export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore
           return textResult(`Leverage set: ${result.symbol} ${result.leverage}x ${result.marginMode}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_cancel_order",
       label: "Cancel Order",
       description: "Cancel one or more specific pending orders by ID. Pass every target in a single call for one atomic confirm.",
@@ -120,8 +121,8 @@ export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore
           return textResult(outcomes.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_cancel_all_orders",
       label: "Cancel All Orders",
       description: "Cancel ALL open pending orders as a sweep. Provide `symbol` to scope to one market; omit to cancel across every market. No per-order selection — this is all-or-nothing.",
@@ -148,8 +149,8 @@ export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore
           return textResult(`Cancelled ${results.length} order(s) ${preposition} ${label}.`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_emergency_close",
       label: "Emergency Close",
       description: "Close a position immediately at market price. Close specific symbol or ALL positions.",
@@ -174,6 +175,6 @@ export function createTradingTools(hl: ITradingClient, walletStore: IWalletStore
           return textResult(`Closed ${results.length} position(s):\n${results.join("\n")}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
   ];
 }

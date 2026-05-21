@@ -1,6 +1,6 @@
 import type { SecurityPolicy } from "../security/policy.js";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { TSchema } from "@mariozechner/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { TSchema } from "@earendil-works/pi-ai";
 import type { Logger } from "pino";
 import type { WebSearchConfig } from "./web-search.js";
 import type { CronService } from "../scheduler/service.js";

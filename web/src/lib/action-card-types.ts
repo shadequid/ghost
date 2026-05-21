@@ -13,7 +13,7 @@ export interface ActionCardSingleStep {
   title: string;
   helper?: string;
   /**
-   * Per-action labels for multi-tool batched confirms (e.g. "Sửa TP" =
+   * Per-action labels for multi-tool batched confirms (e.g. "Update TP" =
    * cancel old TP + set new TP). When present, rendered as a numbered
    * list between title and the Confirm/Cancel buttons so the user can
    * see exactly which actions the single approval covers. Empty / unset

@@ -1,7 +1,8 @@
 /** Advanced trading tools: watchlist, price alerts. */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { WatchlistService } from "../../services/watchlist.js";
 import type { AlertRulesService } from "../../services/alert-rules.js";
@@ -46,10 +47,10 @@ export function createAdvancedTradingTools(
   watchlist: WatchlistService,
   alerts: AlertRulesService,
   priceCache?: PriceCache,
-): AnyAgentTool[] {
+): AgentTool[] {
   return [
     // ─── Watchlist ───
-    {
+    defineTool({
       name: "ghost_watchlist_add",
       label: "Watchlist Add",
       description: "Add a symbol to your watchlist with optional notes.",
@@ -65,8 +66,8 @@ export function createAdvancedTradingTools(
           return textResult(`Added ${item.symbol} to watchlist.${item.notes ? ` Notes: ${item.notes}` : ""}`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_watchlist_remove",
       label: "Watchlist Remove",
       description:
@@ -82,8 +83,8 @@ export function createAdvancedTradingTools(
           return textResult(`Removed ${upper} from watchlist.`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_watchlist_list",
       label: "Watchlist List",
       description: "List all watched symbols with current prices and 24h change.",
@@ -104,10 +105,10 @@ export function createAdvancedTradingTools(
           return textResult(lines.join("\n"));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
 
     // ─── Alerts ───
-    {
+    defineTool({
       name: "ghost_alert_set",
       label: "Set Price Alert",
       description:
@@ -170,8 +171,8 @@ export function createAdvancedTradingTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_alert_list",
       label: "List Alerts",
       description: "List active price alerts with current price and distance to each target.",
@@ -204,8 +205,8 @@ export function createAdvancedTradingTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_alert_remove",
       label: "Remove Alert",
       description: "Hard-delete a price alert by its ID (active or fired).",
@@ -220,8 +221,8 @@ export function createAdvancedTradingTools(
             : textResult(`Alert ${params.id} not found.`);
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_alert_history",
       label: "Alert History",
       description: "List previously fired alerts.",
@@ -244,8 +245,8 @@ export function createAdvancedTradingTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_check_alerts",
       label: "Check Alerts",
       description:
@@ -282,6 +283,6 @@ export function createAdvancedTradingTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

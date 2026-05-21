@@ -1,5 +1,5 @@
-import { Type, type Static } from "@mariozechner/pi-ai";
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import { Type, type Static } from "@earendil-works/pi-ai";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { expandHome } from "../config/paths.js";

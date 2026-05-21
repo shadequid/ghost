@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, readFileSync, unlinkSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Session, type SessionSummary } from "./session.js";
-import type { Message } from "@mariozechner/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
 
 export class SessionManager {
   private readonly sessionsDir: string;

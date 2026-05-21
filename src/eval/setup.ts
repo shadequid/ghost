@@ -3,9 +3,9 @@
  * persisted judge configuration is found.
  *
  * Uses the same provider + model catalogue the Ghost onboard wizard uses, so
- * the judge picker feels identical: pick a provider (claude-cli subscription,
- * OAuth-capable built-ins, cloud API-key providers, or custom endpoints),
- * then pick a model from that provider's list.
+ * the judge picker feels identical: pick a provider (OAuth-capable built-ins,
+ * cloud API-key providers, or custom endpoints), then pick a model from that
+ * provider's list.
  *
  * Persistence: `~/.ghost/eval.json`. Lives outside the main Ghost `config.json`
  * on purpose — eval is infra tooling, separate lifecycle from the agent.
@@ -24,9 +24,8 @@ import { getProviderList, getModelList } from "../onboard/providers.js";
 export const evalFileSchema = z.object({
   judgeProvider: z.string().min(1),
   judgeModel: z.string().min(1),
-  /** Literal API key. Omitted for claude-cli (subscription) and for OAuth
-   *  providers when the user wants the judge to reuse an existing OAuth
-   *  token via Ghost's OAuthManager. */
+  /** Literal API key. Omitted for OAuth providers when the user wants the
+   *  judge to reuse an existing OAuth token via Ghost's OAuthManager. */
   apiKey: z.string().optional(),
 });
 export type EvalFile = z.infer<typeof evalFileSchema>;
@@ -46,13 +45,12 @@ export function readEvalConfig(): EvalFile | null {
 }
 
 export interface WizardContext {
-  /** Ghost's agent provider — used to hide claude-cli when Ghost isn't on it
-   *  (the pi-ai claude-cli provider only registers in that mode). */
+  /** Ghost's agent provider — kept for API compatibility. */
   ghostProvider: string;
 }
 
 /** Returns the judge choice to use, or null if the user cancelled. */
-export async function runJudgeSetupWizard(ctx: WizardContext): Promise<EvalFile | null> {
+export async function runJudgeSetupWizard(_ctx: WizardContext): Promise<EvalFile | null> {
   intro("Ghost Eval — Judge setup");
   note(
     "Eval needs a judge LLM to score Ghost's responses. Ideally a different\n" +
@@ -61,12 +59,7 @@ export async function runJudgeSetupWizard(ctx: WizardContext): Promise<EvalFile 
     "Why this prompt?",
   );
 
-  // Hide claude-cli from the picker unless Ghost itself is on claude-cli —
-  // otherwise the user would configure it and hit a runtime error.
-  const providers = getProviderList().filter((p) => {
-    if (p.id === "claude-cli" && ctx.ghostProvider !== "claude-cli") return false;
-    return true;
-  });
+  const providers = getProviderList();
 
   // Step 1 — provider
   const providerId = await select({
@@ -103,8 +96,6 @@ export async function runJudgeSetupWizard(ctx: WizardContext): Promise<EvalFile 
     });
     if (isCancel(entered)) { cancel("Cancelled."); return null; }
     apiKey = entered.trim();
-  } else if (picked.id === "claude-cli") {
-    log.info("Claude Code uses your subscription — no API key needed.");
   } else if (picked.supportsOAuth) {
     log.info(
       `${picked.label} supports OAuth. The judge will reuse the Ghost OAuth ` +
@@ -126,13 +117,11 @@ export async function runJudgeSetupWizard(ctx: WizardContext): Promise<EvalFile 
 
 /**
  * Providers that do NOT need the wizard to prompt for an API key:
- *   - claude-cli: subscription-based, no key
  *   - OAuth providers: reuse Ghost's OAuth token via OAuthManager at call time
  *   - custom: user is expected to configure ~/.ghost/models.json separately
  * Everything else (built-in cloud providers without OAuth) needs a literal key.
  */
 function needsApiKey(providerId: string): boolean {
-  if (providerId === "claude-cli") return false;
   if (providerId === "custom") return false;
   const info = getProviderList().find((p) => p.id === providerId);
   if (info?.supportsOAuth) return false;
@@ -140,7 +129,6 @@ function needsApiKey(providerId: string): boolean {
 }
 
 function providerHint(p: ReturnType<typeof getProviderList>[number]): string {
-  if (p.id === "claude-cli") return "subscription · no API key";
   if (p.supportsOAuth) return "OAuth or API key";
   if (p.id === "custom") return "configure models.json";
   return "API key";

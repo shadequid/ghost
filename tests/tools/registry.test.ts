@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeEach } from "bun:test";
-import { Type } from "@mariozechner/pi-ai";
-import type { TSchema } from "@mariozechner/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
+import type { TSchema } from "@earendil-works/pi-ai";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 
 function makeTool(name: string, description = "A test tool"): AgentTool<TSchema> {
   return {

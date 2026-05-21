@@ -8,14 +8,15 @@
  * `tweets.filter_prompt` PreferenceStore key the background evaluator reads.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { TweetService } from "../../services/tweets.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 
-export function createTweetsTools(tweets: TweetService): AnyAgentTool[] {
+export function createTweetsTools(tweets: TweetService): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_tweets_search",
       label: "Tweets Search",
       description:
@@ -54,7 +55,7 @@ export function createTweetsTools(tweets: TweetService): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }
 

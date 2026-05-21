@@ -3,8 +3,9 @@
  * News search tool — query local articles cache.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { NewsService } from "../../services/news.js";
 import { NEWS_SOURCE_PRESETS } from "../../services/news-types.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -41,9 +42,9 @@ function displayName(sourceId: string): string {
   return presetMap.get(sourceId)?.name ?? sourceId;
 }
 
-export function createNewsSourceTools(news: NewsService): AnyAgentTool[] {
+export function createNewsSourceTools(news: NewsService): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_news_sources",
       label: "News Sources",
       description:
@@ -131,13 +132,13 @@ export function createNewsSourceTools(news: NewsService): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }
 
-export function createNewsSearchTools(news: NewsService): AnyAgentTool[] {
+export function createNewsSearchTools(news: NewsService): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_news_search",
       label: "News Search",
       description:
@@ -170,7 +171,7 @@ export function createNewsSearchTools(news: NewsService): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }
 

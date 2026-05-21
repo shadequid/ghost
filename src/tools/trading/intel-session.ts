@@ -7,14 +7,15 @@
  * reset the idle clock.
  */
 
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { SessionManager } from "../../session/manager.js";
 import { MAIN_SESSION_KEY } from "../../session/session.js";
 import { textResult } from "../../helpers/result.js";
-import type { AnyAgentTool } from "./types.js";
+import { defineTool } from "./types.js";
 
-export function createSessionInfoTool(sessionManager: SessionManager): AnyAgentTool {
-  return {
+export function createSessionInfoTool(sessionManager: SessionManager): AgentTool {
+  return defineTool({
     name: "ghost_session_info",
     label: "Session Info",
     description:
@@ -44,5 +45,5 @@ export function createSessionInfoTool(sessionManager: SessionManager): AnyAgentT
         ),
       );
     },
-  };
+  });
 }

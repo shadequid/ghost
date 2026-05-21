@@ -128,13 +128,14 @@ describe("log-tail-reader", () => {
     expect(result.size).toBe(0);
   });
 
-  test("clamps invalid limit to bounds", async () => {
+  test("limit:0 returns no historical lines (skip-history mode)", async () => {
     writeLog(["line1", "line2", "line3", "line4", "line5"]);
     const result = await readLogTail({
       file: logFile,
-      limit: 0, // Invalid, should clamp to 1
+      limit: 0,
     });
-    expect(result.lines.length).toBeGreaterThanOrEqual(1);
+    expect(result.lines).toEqual([]);
+    expect(result.cursor).toBeGreaterThan(0);
   });
 
   test("clamps invalid maxBytes to bounds", async () => {

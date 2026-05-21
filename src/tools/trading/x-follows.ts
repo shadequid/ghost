@@ -2,14 +2,15 @@
  * X/Twitter follow tool — authenticate, follow, unfollow, list tracked accounts.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { XFollowService } from "../../services/x-follows.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 
-export function createXFollowTools(xFollows: XFollowService): AnyAgentTool[] {
+export function createXFollowTools(xFollows: XFollowService): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_x_follow",
       label: "X Follow",
       description:
@@ -94,6 +95,6 @@ export function createXFollowTools(xFollows: XFollowService): AnyAgentTool[] {
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

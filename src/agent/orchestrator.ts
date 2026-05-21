@@ -6,8 +6,8 @@
  * post-consolidation. All channels call orchestrator.prompt().
  */
 
-import type { Agent, AgentEvent } from "@mariozechner/pi-agent-core";
-import type { Message, Tool } from "@mariozechner/pi-ai";
+import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
+import type { Message, Tool } from "@earendil-works/pi-ai";
 import type { SessionManager } from "../session/manager.js";
 import { MAIN_SESSION_KEY } from "../session/session.js";
 import type { MemoryConsolidator } from "../memory/consolidator.js";

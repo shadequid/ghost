@@ -5,7 +5,7 @@ import { SecretStore } from "../../src/config/secrets.js";
 import { CredentialStore } from "../../src/config/credentials.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
 import { runHeadless } from "../../src/onboard/wizard.js";
-import { getProviders } from "@mariozechner/pi-ai";
+import { getProviders } from "@earendil-works/pi-ai";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

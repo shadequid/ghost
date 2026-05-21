@@ -6,8 +6,9 @@
  * `news.filter_prompt` PreferenceStore key the background evaluator reads.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { NewsService } from "../../services/news.js";
 import type { RssDiscoveryService } from "../../services/rss-discovery.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -15,9 +16,9 @@ import { textResult, errorResult, getErrorMessage } from "../../helpers/result.j
 export function createNewsTools(
   news: NewsService,
   rssDiscovery: RssDiscoveryService,
-): AnyAgentTool[] {
+): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_news_discover_rss",
       label: "News — Discover RSS Feed",
       description:
@@ -53,8 +54,8 @@ export function createNewsTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_news_add_source",
       label: "News — Add Custom Source",
       description:
@@ -74,6 +75,6 @@ export function createNewsTools(
           return errorResult(getErrorMessage(e));
         }
       },
-    },
+    }),
   ];
 }

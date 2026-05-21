@@ -1,7 +1,7 @@
 /**
  * Shared types for the Ghost autonomous agent runtime.
  * Channel message types in src/bus/types.ts.
- * LLM/message types from @mariozechner/pi-ai.
+ * LLM/message types from @earendil-works/pi-ai.
  */
 
 /** Autonomy level controlling how much the agent can act without human approval. */

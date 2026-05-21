@@ -67,9 +67,8 @@ export function useChatEvents(deps: ChatEventDeps) {
   const streamingRefs: StreamingRefs = { streamingRafRef, streamingMsgIdRef, streamingTextRef };
 
   /** Remove the streaming flag from a message, update its content, and
-   *  extract any `<AskUserQuestion>` blocks the agent emitted (those
-   *  render as AskCard(s) below the message; the source markup is
-   *  stripped). */
+   *  extract any `<asks>` blocks the agent emitted (those render as
+   *  AskCard(s) below the message; the source markup is stripped). */
   function finalizeMsg(m: ChatMessage, content: string, toolCalls?: ToolCallEntry[]): ChatMessage {
     const { streaming: _, ...rest } = m;
     const { stripped, blocks } = extractAskBlocks(content);

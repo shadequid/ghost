@@ -8,7 +8,7 @@
 import { describe, test, expect, mock } from "bun:test";
 import { Runner } from "../../src/agent/runner.js";
 import { NOOP_LOGGER } from "../../src/logger.js";
-import type { Agent } from "@mariozechner/pi-agent-core";
+import type { Agent } from "@earendil-works/pi-agent-core";
 import type { ToolRegistry } from "../../src/tools/registry.js";
 
 /** Minimal ToolRegistry stub: empty tool list, sufficient for Runner tests. */
@@ -127,7 +127,7 @@ describe("Runner — sequential calls", () => {
 
     // The second assistant message should be "reply-to: second", not stacked.
     expect(agent.state.messages).toHaveLength(1);
-    expect((agent.state.messages[0].content[0] as { text: string }).text).toBe("reply-to: second");
+    expect(((agent.state.messages[0] as { content: Array<{ text: string }> }).content[0]).text).toBe("reply-to: second");
   });
 });
 

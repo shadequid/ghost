@@ -2,7 +2,7 @@
  * Gateway chat methods — uses Orchestrator for unified session/agent path.
  */
 
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { MethodHandler, MethodContext } from "./method-registry.js";
 import type { SessionManager } from "../session/manager.js";
 import type { Orchestrator } from "../agent/orchestrator.js";

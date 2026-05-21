@@ -2,9 +2,9 @@
  * Scenario builder — generates trading journey messages per persona.
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { Model, Api, ProviderStreamOptions, ToolCall } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { complete } from "@earendil-works/pi-ai";
+import type { Model, Api, ProviderStreamOptions, ToolCall } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import type { Persona } from "./persona.js";
 import { SCENARIO_GEN_PROMPT } from "./prompts/scenario-gen.js";
 import { loadGhostContext, formatSkillsContext } from "./ghost-context.js";

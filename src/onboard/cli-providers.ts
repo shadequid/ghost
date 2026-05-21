@@ -15,6 +15,7 @@ interface ProviderRow {
   tierLabel: string;
   requiresApiKey: boolean;
   supportsOAuth: boolean;
+  usesCallbackServer: boolean;
   apiKeyUrl: string | null;
   /** True when the provider was loaded from ~/.ghost/models.json. */
   custom?: boolean;
@@ -29,6 +30,7 @@ export function listProviders(): void {
     tierLabel: p.tierLabel,
     requiresApiKey: requiresApiKey(p),
     supportsOAuth: p.supportsOAuth,
+    usesCallbackServer: p.usesCallbackServer,
     apiKeyUrl: p.apiKeyUrl ?? null,
   }));
 
@@ -44,6 +46,7 @@ export function listProviders(): void {
     tierLabel: "🔧 Custom",
     requiresApiKey: true,
     supportsOAuth: false,
+    usesCallbackServer: false,
     apiKeyUrl: null,
     custom: true,
   }));

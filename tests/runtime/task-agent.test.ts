@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
-import { Agent } from "@mariozechner/pi-agent-core";
+import { Agent } from "@earendil-works/pi-agent-core";
 import {
   createAgent,
   buildAgentOptions,
@@ -26,7 +26,7 @@ import { createToolRegistry } from "../../src/tools/index.js";
 import { CronService } from "../../src/scheduler/service.js";
 import { MemoryStore } from "../../src/memory/store.js";
 import type { TimezoneService } from "../../src/services/timezone.js";
-import { getModel } from "@mariozechner/pi-ai";
+import { getModel } from "@earendil-works/pi-ai";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -66,7 +66,6 @@ function makeMinimalConfig(): Config {
     cron: { timezone: "UTC", enableScheduler: false },
     skills: { skillsDir: "~/.ghost/skills", builtinSkillsDir: undefined },
     paper: { enabled: false, initialBalance: 10_000 },
-    claudeCli: { command: "claude", model: "claude-opus-4-5", extraFlags: [], permissionMode: "default", timeoutMs: 120_000 },
     proactive: { enabled: false },
   } as unknown as Config;
 }

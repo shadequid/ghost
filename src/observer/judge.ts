@@ -7,8 +7,8 @@
  * `callJudge` helper that wires Runner.call + parser together.
  */
 
-import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { Type, type Static } from "typebox";
+import { Value } from "typebox/value";
 import { parseLlmJsonObject } from "../helpers/parse-llm-json.js";
 import type { Runner } from "../agent/runner.js";
 import type { ContextBuilder } from "../agent/context-builder.js";

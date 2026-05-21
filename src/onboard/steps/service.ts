@@ -13,6 +13,12 @@ export interface ServiceStepDeps {
   prompt: (message: string) => Promise<boolean>;
   /** Already-installed 3-way menu. */
   alreadyInstalledChoice: (message: string) => Promise<"keep" | "restart" | "reinstall" | "uninstall">;
+  /**
+   * Pre-decided action for the already-installed branch. When set, skips
+   * `alreadyInstalledChoice` entirely and runs that scenario directly.
+   * Used by the re-onboard path to always restart on a config change.
+   */
+  forceChoice?: "keep" | "restart" | "reinstall" | "uninstall";
   /** For Linux only: confirm sudo-linger prompt. */
   confirmLinger: (message: string) => Promise<boolean>;
   /** Returns true if the gateway became reachable within deadline. */
@@ -41,7 +47,7 @@ export async function runServiceStep(deps: ServiceStepDeps): Promise<ServiceStep
   const currentStatus = await deps.controller.status();
 
   if (currentStatus !== "not-installed") {
-    const choice = await deps.alreadyInstalledChoice("Ghost service already installed");
+    const choice = deps.forceChoice ?? await deps.alreadyInstalledChoice("Ghost service already installed");
 
     if (choice === "keep") return { action: "kept", warnings };
 

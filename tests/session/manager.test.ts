@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { SessionManager } from "../../src/session/manager.js";
 import { Session } from "../../src/session/session.js";
-import type { UserMessage, AssistantMessage, TextContent } from "@mariozechner/pi-ai";
+import type { UserMessage, AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import { existsSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

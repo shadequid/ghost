@@ -2,13 +2,14 @@
  * Timing risk tool — detect weekends, holidays, post-volatility, macro events.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { TimingRiskService } from "../../services/timing-risk.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
 
-export function createTimingRiskTool(timingRisk: TimingRiskService): AnyAgentTool {
-  return {
+export function createTimingRiskTool(timingRisk: TimingRiskService): AgentTool {
+  return defineTool({
     name: "ghost_timing_risk",
     label: "Timing Risk",
     description: "Detect timing risks: weekends, holidays, post-volatility, upcoming macro events.",
@@ -37,5 +38,5 @@ export function createTimingRiskTool(timingRisk: TimingRiskService): AnyAgentToo
         return textResult(lines.join("\n"));
       } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
     },
-  };
+  });
 }

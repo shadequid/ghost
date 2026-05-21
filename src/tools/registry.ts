@@ -1,5 +1,5 @@
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { TSchema, TextContent } from "@mariozechner/pi-ai";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { TSchema, TextContent } from "@earendil-works/pi-ai";
 import type { Logger } from "pino";
 import { READ_TOOLS } from "../security/constants.js";
 

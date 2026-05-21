@@ -15,7 +15,7 @@ export {
   type AfterToolCallResult,
   type ThinkingLevel,
   type ToolExecutionMode,
-} from "@mariozechner/pi-agent-core";
+} from "@earendil-works/pi-agent-core";
 
 export { ContextBuilder } from "./context-builder.js";
 export type { ContextBuilderConfig } from "./context-builder.js";

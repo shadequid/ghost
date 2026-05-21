@@ -2,8 +2,9 @@
  * Cross-exchange funding tool — compare HL funding vs CEX rates.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { ITradingClient } from "../../services/interfaces/trading-client.js";
 import type { CrossExchangeService } from "../../services/cross-exchange.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -11,8 +12,8 @@ import { textResult, errorResult, getErrorMessage } from "../../helpers/result.j
 export function createCrossExchangeFundingTool(
   hl: ITradingClient,
   crossExchange: CrossExchangeService,
-): AnyAgentTool {
-  return {
+): AgentTool {
+  return defineTool({
     name: "ghost_cross_exchange_funding",
     label: "Cross-Exchange Funding",
     description: "Compare Hyperliquid funding rate vs CEX funding rates (Binance, Bybit, OKX) using direct REST APIs.",
@@ -52,5 +53,5 @@ export function createCrossExchangeFundingTool(
         return textResult(lines.join("\n"));
       } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
     },
-  };
+  });
 }

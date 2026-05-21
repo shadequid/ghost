@@ -1,7 +1,7 @@
 /** CronTool — LLM interface for scheduling tasks. */
 
-import { Type, type Static } from "@mariozechner/pi-ai";
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import { Type, type Static } from "@earendil-works/pi-ai";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { CronService } from "../scheduler/service.js";
 import type { CronSchedule } from "../scheduler/types.js";
 import type { OriginAware, CronAware } from "./context-aware.js";

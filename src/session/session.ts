@@ -4,7 +4,7 @@
  * Messages are APPEND-ONLY for LLM cache efficiency.
  * Consolidation writes to MEMORY.md/HISTORY.md but never mutates messages.
  */
-import type { Message, AssistantMessage, ToolResultMessage, ToolCall } from "@mariozechner/pi-ai";
+import type { Message, AssistantMessage, ToolResultMessage, ToolCall } from "@earendil-works/pi-ai";
 
 /**
  * Canonical session key for the single Ghost user session. Used by Orchestrator,

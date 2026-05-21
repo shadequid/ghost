@@ -2,8 +2,9 @@
  * Technical analysis tools — thin wrappers around TaIndicatorService and TaLevelsService.
  */
 
-import { Type } from "@sinclair/typebox";
-import type { AnyAgentTool } from "./types.js";
+import { Type } from "typebox";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineTool } from "./types.js";
 import type { TaIndicatorService, IndicatorResult } from "../../services/ta-indicators.js";
 import type { TaLevelsService, LevelsResult } from "../../services/ta-levels.js";
 import { textResult, errorResult, getErrorMessage } from "../../helpers/result.js";
@@ -139,9 +140,9 @@ function formatLevels(data: LevelsResult): string {
 // Tool factory
 // ---------------------------------------------------------------------------
 
-export function createTechnicalTools(taIndicators: TaIndicatorService, taLevels: TaLevelsService): AnyAgentTool[] {
+export function createTechnicalTools(taIndicators: TaIndicatorService, taLevels: TaLevelsService): AgentTool[] {
   return [
-    {
+    defineTool({
       name: "ghost_get_indicators",
       label: "Get Technical Indicators",
       description: "Compute technical indicators (EMA, RSI, MACD, Bollinger, ADX, Ichimoku, etc.) from kline data for a symbol.",
@@ -156,8 +157,8 @@ export function createTechnicalTools(taIndicators: TaIndicatorService, taLevels:
           return textResult(formatIndicators(result));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
-    {
+    }),
+    defineTool({
       name: "ghost_get_levels",
       label: "Get Support & Resistance Levels",
       description: "Detect support/resistance levels using swing points, Fibonacci retracement, and pivot points.",
@@ -173,6 +174,6 @@ export function createTechnicalTools(taIndicators: TaIndicatorService, taLevels:
           return textResult(formatLevels(result));
         } catch (e: unknown) { return errorResult(getErrorMessage(e)); }
       },
-    },
+    }),
   ];
 }

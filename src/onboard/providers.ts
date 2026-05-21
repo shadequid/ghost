@@ -1,5 +1,6 @@
-import { getProviders, getModels } from "@mariozechner/pi-ai";
-import type { KnownProvider } from "@mariozechner/pi-ai";
+import { getProviders, getModels } from "@earendil-works/pi-ai";
+import { getOAuthProvider } from "@earendil-works/pi-ai/oauth";
+import type { KnownProvider } from "@earendil-works/pi-ai";
 import { filterModelCatalog } from "../providers/model-catalog.js";
 
 export interface ProviderInfo {
@@ -10,6 +11,8 @@ export interface ProviderInfo {
   tierLabel: string;
   apiKeyUrl?: string;
   supportsOAuth: boolean;
+  /** True when the provider's OAuth flow uses a loopback callback server (supports manual code paste). */
+  usesCallbackServer: boolean;
 }
 
 const OAUTH_PROVIDERS = new Set(["anthropic", "openai-codex", "github-copilot", "google-gemini-cli", "google-antigravity"]);
@@ -53,6 +56,7 @@ export function getProviderList(): ProviderInfo[] {
   const list: ProviderInfo[] = [];
 
   for (const id of knownProviders) {
+    const isOAuth = OAUTH_PROVIDERS.has(id);
     const meta = PROVIDER_META[id];
     if (meta) {
       list.push({
@@ -62,7 +66,8 @@ export function getProviderList(): ProviderInfo[] {
         tier: meta.tier,
         tierLabel: TIER_LABELS[meta.tier] ?? "Other",
         apiKeyUrl: meta.apiKeyUrl,
-        supportsOAuth: OAUTH_PROVIDERS.has(id),
+        supportsOAuth: isOAuth,
+        usesCallbackServer: isOAuth ? (getOAuthProvider(id)?.usesCallbackServer ?? false) : false,
       });
     } else {
       list.push({
@@ -71,7 +76,8 @@ export function getProviderList(): ProviderInfo[] {
         description: "",
         tier: 3,
         tierLabel: TIER_LABELS[3] ?? "Other",
-        supportsOAuth: OAUTH_PROVIDERS.has(id),
+        supportsOAuth: isOAuth,
+        usesCallbackServer: isOAuth ? (getOAuthProvider(id)?.usesCallbackServer ?? false) : false,
       });
     }
   }
@@ -84,6 +90,7 @@ export function getProviderList(): ProviderInfo[] {
     tier: 4,
     tierLabel: TIER_LABELS[4] ?? "Other",
     supportsOAuth: false,
+    usesCallbackServer: false,
   });
 
   // Preferred providers shown first in explicit order

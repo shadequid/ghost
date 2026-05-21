@@ -2,14 +2,14 @@
  * Eval runner — orchestrates persona generation, Ghost simulation, judging, and reporting.
  *
  * Self-contained: reads user's existing Ghost config, creates isolated runtime,
- * runs everything with one command. Supports all providers including claude-cli.
+ * runs everything with one command.
  */
 
 import { mkdtempSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { getModel, type Model, type Api, type KnownProvider } from "@mariozechner/pi-ai";
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import { getModel, type Model, type Api, type KnownProvider } from "@earendil-works/pi-ai";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { createRuntime, getApiKey as makeGetApiKey } from "../runtime.js";
 import type { Runtime } from "../runtime.js";
 import { getGhostDir, getConfigPath, getCredentialsPath, getSecretKeyPath, getModelsConfigPath, getEvalConfigPath } from "../config/paths.js";
@@ -23,7 +23,6 @@ import { assertExecution } from "./assertions.js";
 import { buildReport, printReport, writeReport, compareWithPrevious } from "./report.js";
 import { loadGolden } from "./golden-loader.js";
 import { readEvalConfig, runJudgeSetupWizard, type EvalFile } from "./setup.js";
-import { createClaudeCliModel } from "../providers/claude-cli/models.js";
 
 /**
  * Everything the scenario loop and judge calls need that's derived from a
@@ -51,29 +50,6 @@ export async function runEval(config: EvalConfig): Promise<void> {
   const ghostConfig = readGhostConfigOrExit();
   if (!ghostConfig) return;
 
-  // 0a+ claude-cli agent is not yet supported for eval.
-  //     claude-cli needs an HTTP gateway (paired bearer token) to route tool
-  //     calls. The daemon wires this up via PairingManager.autoPair. The
-  //     isolated eval runtime has neither a gateway nor a paired bearer, so
-  //     every tool call either gets "auth failed" from a running daemon or
-  //     connection refused if nothing is listening. Either way, tools fail
-  //     silently and the scoring is garbage.
-  if (ghostConfig.provider === "claude-cli") {
-    console.error(
-      "\n  Ghost is running on claude-cli, but eval does not yet support that\n" +
-      "  provider for the agent under test. The claude-cli provider needs an\n" +
-      "  HTTP gateway + paired bearer token to route tool calls, and the\n" +
-      "  isolated eval runtime doesn't stand one up.\n\n" +
-      "  Workaround: temporarily switch Ghost to an API provider before running eval.\n" +
-      "    bun run dev onboard    # pick anthropic / openrouter / openai / ...\n" +
-      "    bun run eval\n\n" +
-      "  Then switch back with `bun run dev onboard` when done.\n" +
-      "  (Tracked for a proper fix: eval should start its own isolated gateway.)\n",
-    );
-    process.exitCode = 1;
-    return;
-  }
-
   // 0b. Auto-setup judge on first run. Probe the REAL ghost dir before we
   //     switch GHOST_HOME to a temp dir so any writes land in the user's
   //     persistent config.
@@ -90,8 +66,7 @@ export async function runEval(config: EvalConfig): Promise<void> {
   if (!resolvedJudge) return; // user cancelled wizard
 
   // 0c. Fail fast if the persisted choice is incompatible with the current
-  //     Ghost runtime (e.g. eval.json says claude-cli but Ghost was switched
-  //     to openrouter since the wizard last ran).
+  //     Ghost runtime.
   const incompat = judgeIncompatibleWithGhost(resolvedJudge, ghostConfig.provider);
   if (incompat) {
     console.error(`\n  ${incompat}\n  Delete ~/.ghost/eval.json or re-run with --judge-provider to reconfigure.\n`);
@@ -537,8 +512,7 @@ async function buildEvalStack(
   );
   // Judge key resolution layers:
   //   1. Wizard-supplied apiKey in eval.json (explicit user choice)
-  //   2. claude-cli sentinel when judge is claude-cli
-  //   3. Ghost runtime's own getApiKey (OAuth / credential store / models.json)
+  //   2. Ghost runtime's own getApiKey (OAuth / credential store / models.json)
   const judgeGetApiKey = makeJudgeGetApiKey(resolvedJudge, runtimeGetApiKey);
 
   return {
@@ -588,27 +562,14 @@ function wipeRuntimeAccumulation(tmpDir: string): void {
 
 /**
  * Resolve the judge model. Resolution order:
- *   1. claude-cli — only valid when Ghost's agent runtime is also claude-cli,
- *      because the claude-cli pi-ai provider is registered on-demand by
- *      `resolveProvider` in runtime.ts. Judge reuses that registration.
- *   2. Custom registry (~/.ghost/models.json) — user-defined baseUrl providers.
- *   3. pi-ai built-ins.
+ *   1. Custom registry (~/.ghost/models.json) — user-defined baseUrl providers.
+ *   2. pi-ai built-ins.
  */
 function resolveJudgeModel(
   provider: string,
   modelId: string,
   runtime: Runtime,
 ): Model<Api> {
-  if (provider === "claude-cli") {
-    if (runtime.config.provider !== "claude-cli") {
-      throw new Error(
-        "Judge is set to claude-cli but Ghost's agent runtime is not. " +
-        "claude-cli judging requires Ghost to run claude-cli too (it reuses the same provider). " +
-        "Pick a different judge provider, or switch Ghost to claude-cli via `ghost onboard`.",
-      );
-    }
-    return createClaudeCliModel(modelId);
-  }
   const custom = runtime.customModelRegistry.find(provider, modelId);
   if (custom) return custom;
   const model = getModel(provider as KnownProvider, modelId as never);
@@ -626,9 +587,7 @@ function resolveJudgeModel(
  *   1. Wizard-supplied literal key from eval.json — wins for the judge's own
  *      provider, preserved so users can route judge through a different
  *      account than the agent.
- *   2. claude-cli sentinel — matches what the daemon uses when Ghost itself
- *      is on claude-cli.
- *   3. Delegate to runtime's getApiKey — covers OAuth tokens and
+ *   2. Delegate to runtime's getApiKey — covers OAuth tokens and
  *      user-configured models.json apiKeys.
  */
 function makeJudgeGetApiKey(
@@ -637,7 +596,6 @@ function makeJudgeGetApiKey(
 ): (provider: string) => Promise<string | undefined> {
   return async (provider: string) => {
     if (provider === judge.judgeProvider && judge.apiKey) return judge.apiKey;
-    if (provider === "claude-cli") return "claude-cli-no-key-needed";
     return runtimeGetApiKey(provider);
   };
 }
@@ -691,21 +649,12 @@ function readGhostConfigOrExit(): { provider: string; model: string } | null {
 
 /**
  * Returns a human-readable reason string if `judge` can't work with the
- * current Ghost runtime; null when compatible. Right now the only blocker
- * is "judge is claude-cli but Ghost isn't" — the claude-cli pi-ai provider
- * is registered on-demand by `resolveProvider` in runtime.ts only when Ghost
- * itself runs claude-cli.
+ * current Ghost runtime; null when compatible.
  */
 function judgeIncompatibleWithGhost(
-  judge: EvalFile,
-  ghostProvider: string,
+  _judge: EvalFile,
+  _ghostProvider: string,
 ): string | null {
-  if (judge.judgeProvider === "claude-cli" && ghostProvider !== "claude-cli") {
-    return (
-      `Judge is set to claude-cli but Ghost's agent runtime is "${ghostProvider}". ` +
-      `Claude Code judging requires Ghost to run claude-cli too (it reuses the same provider).`
-    );
-  }
   return null;
 }
 

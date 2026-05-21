@@ -21,12 +21,12 @@
  *
  * Layer strategy: forced tool_choice → retry without forced → parse text
  * fallback → text-only prompt. Same pattern as src/memory/consolidator.ts
- * for claude-cli compatibility.
+ * for backward compatibility across providers with weak forced-tool support.
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { Model, Api, ProviderStreamOptions, ToolCall, AssistantMessage, TextContent } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { complete } from "@earendil-works/pi-ai";
+import type { Model, Api, ProviderStreamOptions, ToolCall, AssistantMessage, TextContent } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import type { Scenario } from "./scenario.js";
 import { JUDGE_SYSTEM_PROMPT } from "./prompts/judge.js";
 

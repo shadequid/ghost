@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { TextContent } from "@mariozechner/pi-ai";
+import type { TextContent } from "@earendil-works/pi-ai";
 import { ReadFileTool } from "../../src/tools/read-file.js";
 
 const text = (r: { content: { type: string; text?: string }[] }) =>

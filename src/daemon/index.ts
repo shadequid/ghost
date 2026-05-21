@@ -201,11 +201,9 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   await runtime.oauthManager.ensureLoaded();
   const hasApiKey = await credentials.has("api_key");
   const hasOAuth = runtime.oauthManager.listAuthenticated().length > 0;
-  const authDisplay = config.provider === "claude-cli"
-    ? "CLI (subscription)"
-    : hasOAuth
-      ? `OAuth (${runtime.oauthManager.listAuthenticated().join(", ")})`
-      : hasApiKey ? "API Key" : "\x1b[33m⚠ Not configured\x1b[0m";
+  const authDisplay = hasOAuth
+    ? `OAuth (${runtime.oauthManager.listAuthenticated().join(", ")})`
+    : hasApiKey ? "API Key" : "\x1b[33m⚠ Not configured\x1b[0m";
 
   // 5. Activate Telegram channel if the bot token is present.
   // config.telegram is always defaulted by the schema — credentials are the
