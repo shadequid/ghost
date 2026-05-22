@@ -27,6 +27,17 @@ powershell -c "irm bun.sh/install.ps1 | iex"         # Windows
 bun install -g "@hyperflow.fun/ghost"
 ```
 
+Or one-line install via the bundled script (bootstraps Bun if missing,
+then runs `ghost onboard`):
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/hyperflowdotfun/ghost/main/install.sh | bash
+
+# Windows (PowerShell)
+powershell -c "irm https://raw.githubusercontent.com/hyperflowdotfun/ghost/main/install.ps1 | iex"
+```
+
 **2. Onboard**
 
 ```bash
