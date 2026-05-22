@@ -89,15 +89,6 @@ Telegram.
 
 All data stored in `~/.ghost/` (config, credentials, database, memory, sessions). Nothing leaves your machine.
 
-## Notes
-
-- Ghost does not yet support switching between Paper and Live mode. To switch, uninstall and reinstall.
-- If you installed an earlier version, uninstall first — this release contains breaking changes:
-  ```bash
-  ghost uninstall
-  bun remove -g @hyperflow.fun/ghost
-  ```
-
 ## Security
 
 The Ghost gateway has no built-in authentication layer. By default it binds to
